@@ -33,18 +33,18 @@ typedef struct activePara_s
 
 }activePara_t;
 
-using arrayPtr = shared_ptr<float>;
+using arrayPtr = unique_ptr<float[]>;
 
 //0-1 float random
 mt19937 radomGen;
 uniform_real_distribution<float> radomDist;
 
-void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr posX, arrayPtr posY, arrayPtr theta);
+void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
 
 int main(int argc, char* argv[]){
 
     auto birdNum = DEFAULT_BIRD_NUM;
-    if(argc > 0){
+    if(argc > 1){
         birdNum = atoi(argv[1]);
         if(birdNum == 0)birdNum = DEFAULT_BIRD_NUM;
     }
@@ -55,7 +55,7 @@ int main(int argc, char* argv[]){
         .deltaTime = 0.2,
         .totalStep = 500,
         .birdNum = birdNum,
-        .randomSeed = time(nullptr)
+        .randomSeed = static_cast<int>(time(nullptr))
     };
 
     activePara_s aPara = {
@@ -68,9 +68,9 @@ int main(int argc, char* argv[]){
     radomDist = uniform_real_distribution<float>(0,1);
 
     //initialize the data
-    arrayPtr posX(new float(gPara.birdNum));
-    arrayPtr posY(new float(gPara.birdNum));
-    arrayPtr theta(new float(gPara.birdNum));
+    arrayPtr posX(new float[gPara.birdNum]);
+    arrayPtr posY(new float[gPara.birdNum]);
+    arrayPtr theta(new float[gPara.birdNum]);
 
 
     for(int i=0; i < gPara.birdNum; i++){
@@ -94,9 +94,9 @@ int main(int argc, char* argv[]){
 }
 
 
-void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr posX, arrayPtr posY, arrayPtr theta){
+void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
 
-    arrayPtr tempTheta(new float(gPara.birdNum));
+    arrayPtr tempTheta(new float[gPara.birdNum]);
 
     for(int step=0; step < gPara.totalStep; step++){ //steps
 
