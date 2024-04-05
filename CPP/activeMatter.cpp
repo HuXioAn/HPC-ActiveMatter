@@ -66,9 +66,9 @@ int main(int argc, char* argv[]){
     };
 
     activePara_s aPara = {
+        .velocity = 1.0,
         .fluctuation = 0.5,
         .observeRadius = 1.0,
-        .velocity = 1.0
     };
 
     radomGen = mt19937(gPara.randomSeed);
