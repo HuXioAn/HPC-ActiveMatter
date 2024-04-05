@@ -15,7 +15,7 @@ Create Time: 02/04/24
 using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
-constexpr bool OUTPUT_TO_FILE = false;
+constexpr bool OUTPUT_TO_FILE = true;
 
 typedef struct generalPara_s
 {
@@ -102,7 +102,11 @@ int main(int argc, char* argv[]){
 
 int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
     //add current data to the file
-
+    outputFile << "{" ;
+    for(int bird=0; bird < birdNum; bird++){
+        outputFile << posX[bird] << "," << posY[bird] << "," << theta[bird] << ";";
+    }
+    outputFile << "}" << endl;
     return 0;
 }
 
@@ -122,7 +126,8 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         }
 
         //para
-        outputFile << "generalParameter{" << 
+        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
+            ",birdNum=" << gPara.birdNum << "}" << endl;
         //data
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
