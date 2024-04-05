@@ -24,7 +24,7 @@ def main():
     fig = plt.figure(figsize=(4,4), dpi=80)
     ax = plt.gca()
 
-    data_lines = content.split('\n')[1:]  # 跳过第一行
+    data_lines = content.split('\n')[1:-1]  # 跳过第一行
     for i, line in enumerate(data_lines):
         line = line.strip('{};')
         data_points = line.split(';')
