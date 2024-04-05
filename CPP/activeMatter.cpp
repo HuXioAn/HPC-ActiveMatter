@@ -160,7 +160,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             tempTheta[bird] = atan2(sy, sx) + (radomDist(radomGen) - 0.5) * aPara.fluctuation; //new theta
         }
         //copy, could be dual-buffer
-        copy(tempTheta.get(), tempTheta.get(), theta.get());
+        copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
         //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
 
         if(OUTPUT_TO_FILE)outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
