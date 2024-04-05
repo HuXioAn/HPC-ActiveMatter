@@ -140,8 +140,8 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             posY[bird] += gPara.deltaTime * sin(theta[bird]);
 
             //in the field
-            posX[bird] = fmod(posX[bird], gPara.fieldLength);
-            posY[bird] = fmod(posY[bird], gPara.fieldLength);
+            posX[bird] = fmod(posX[bird]+gPara.fieldLength, gPara.fieldLength);
+            posY[bird] = fmod(posY[bird]+gPara.fieldLength, gPara.fieldLength);
 
         }
         //adjust theta
