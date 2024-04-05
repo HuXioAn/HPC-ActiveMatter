@@ -9,10 +9,13 @@ Create Time: 02/04/24
 #include <cmath>
 #include <random>
 #include <cstring>
+#include <fstream>
+#include <iomanip>
 
 using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
+constexpr bool OUTPUT_TO_FILE = false;
 
 typedef struct generalPara_s
 {
@@ -22,6 +25,7 @@ typedef struct generalPara_s
     int birdNum;
 
     int randomSeed;
+    string outputPath;
 
 }generalPara_t;
 
@@ -41,6 +45,8 @@ uniform_real_distribution<float> radomDist;
 
 void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
 
+
+
 int main(int argc, char* argv[]){
 
     auto birdNum = DEFAULT_BIRD_NUM;
@@ -55,7 +61,8 @@ int main(int argc, char* argv[]){
         .deltaTime = 0.2,
         .totalStep = 500,
         .birdNum = birdNum,
-        .randomSeed = static_cast<int>(time(nullptr))
+        .randomSeed = static_cast<int>(time(nullptr)),
+        .outputPath = "./output.plot",
     };
 
     activePara_s aPara = {
@@ -93,10 +100,32 @@ int main(int argc, char* argv[]){
     return 0;
 }
 
+int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
+    //add current data to the file
+
+    return 0;
+}
+
 
 void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
 
     arrayPtr tempTheta(new float[gPara.birdNum]);
+    ofstream outputFile;
+
+    if(OUTPUT_TO_FILE){//save the parameter,first step to file
+        outputFile = ofstream(gPara.outputPath, ios::trunc);
+        if(outputFile.is_open()){
+            outputFile << std::fixed << std::setprecision(3);
+        }else{
+            cout << "[!]Unable to open output file: " << gPara.outputPath << endl;
+            exit(-1);
+        }
+
+        //para
+        outputFile << "generalParameter{" << 
+        //data
+        outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+    }
 
     for(int step=0; step < gPara.totalStep; step++){ //steps
 
@@ -128,8 +157,12 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         //copy, could be dual-buffer
         copy(tempTheta.get(), tempTheta.get(), theta.get());
         //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
+
+        if(OUTPUT_TO_FILE)outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
         
     }
+
+    if(OUTPUT_TO_FILE)outputFile.close();
 }
 
 
