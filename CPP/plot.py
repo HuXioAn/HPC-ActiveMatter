@@ -21,7 +21,7 @@ def main():
     theta = np.zeros(bird_num)
 
 
-    fig = plt.figure(figsize=(4,4), dpi=80)
+    fig = plt.figure(figsize=(7,7), dpi=120)
     ax = plt.gca()
 
     data_lines = content.split('\n')[1:-1]  # 跳过第一行
