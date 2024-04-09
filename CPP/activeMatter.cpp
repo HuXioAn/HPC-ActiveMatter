@@ -151,8 +151,8 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             float sx = 0,sy = 0; 
 
             for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
-                if(abs(posX[bird]-posX[oBird]) > aPara.observeRadius || 
-                    abs(posY[bird]-posY[oBird] > aPara.observeRadius))continue;
+                if((abs(posX[bird]-posX[oBird]) > aPara.observeRadius) || 
+                    (abs(posY[bird]-posY[oBird]) > aPara.observeRadius))continue;
                 auto distPow2 = pow(posX[bird]-posX[oBird],2) + pow(posY[bird]-posY[oBird],2);
                 if(distPow2 < pow(aPara.observeRadius,2)){ //observed
                     sx += cos(theta[oBird]);
