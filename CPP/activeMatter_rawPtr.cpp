@@ -118,6 +118,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
 
     arrayPtr tempTheta(new float[gPara.birdNum]);
     ofstream outputFile;
+    float observeRadiusSqr = pow(aPara.observeRadius,2);
 
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
         outputFile = ofstream(gPara.outputPath, ios::trunc);
@@ -157,7 +158,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                 if((abs(posX[bird]-posX[oBird]) > aPara.observeRadius) || 
                     (abs(posY[bird]-posY[oBird]) > aPara.observeRadius))continue;
                 auto distPow2 = pow(posX[bird]-posX[oBird],2) + pow(posY[bird]-posY[oBird],2);
-                if(distPow2 < pow(aPara.observeRadius,2)){ //observed
+                if(distPow2 < observeRadiusSqr){ //observed
                     sx += cos(theta[oBird]);
                     sy += sin(theta[oBird]);
                 }
