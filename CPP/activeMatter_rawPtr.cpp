@@ -119,6 +119,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
     arrayPtr tempTheta(new float[gPara.birdNum]);
     ofstream outputFile;
     float observeRadiusSqr = pow(aPara.observeRadius,2);
+    float inscribedSquareSideLengthHalf = aPara.observeRadius / sqrt(2);
 
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
         outputFile = ofstream(gPara.outputPath, ios::trunc);
@@ -155,13 +156,28 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             float sx = 0,sy = 0; 
 
             for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
-                if((abs(posX[bird]-posX[oBird]) > aPara.observeRadius) || 
-                    (abs(posY[bird]-posY[oBird]) > aPara.observeRadius))continue;
-                auto distPow2 = pow(posX[bird]-posX[oBird],2) + pow(posY[bird]-posY[oBird],2);
-                if(distPow2 < observeRadiusSqr){ //observed
+
+                auto xDiffAbs = abs(posX[bird]-posX[oBird]);
+                auto yDiffAbs = abs(posY[bird]-posY[oBird]);
+                
+                if((xDiffAbs > aPara.observeRadius) || 
+                    (yDiffAbs > aPara.observeRadius) 
+                    || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
+                    )continue;//ignore birds outside the circumscribed square and 4 corners
+
+                if((xDiffAbs < inscribedSquareSideLengthHalf) && 
+                    (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
                     sx += cos(theta[oBird]);
                     sy += sin(theta[oBird]);
+                }else{
+                    auto distPow2 = pow(xDiffAbs, 2) + pow(yDiffAbs, 2);
+                    if(distPow2 < observeRadiusSqr){ //observed
+                        sx += cos(theta[oBird]);
+                        sy += sin(theta[oBird]);
+                    }
                 }
+
+                
             }
             tempTheta[bird] = atan2(sy, sx) + (radomDist(radomGen) - 0.5) * aPara.fluctuation; //new theta
         }
