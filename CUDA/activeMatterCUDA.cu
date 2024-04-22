@@ -11,6 +11,7 @@ Create Time: 22/04/24
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <chrono>
 
 #include <cuda.h>
 #include "cuda_runtime.h"
@@ -152,9 +153,12 @@ __host__ int main(int argc, char* argv[]){
     auto threadPerBlock = 256;
     auto blockPerGrid = (gPara.birdNum + threadPerBlock - 1) / threadPerBlock;
 
+
+    using namespace std::chrono;
+    high_resolution_clock::time_point t1, t2;
+    t1 = high_resolution_clock::now();
+
     computeActiveMatter<<<blockPerGrid, threadPerBlock>>>(gParaCuda, aParaCuda, posXCuda, posYCuda, thetaCuda, thetaTempCuda);
-
-
     //output
 
 
@@ -164,6 +168,10 @@ __host__ int main(int argc, char* argv[]){
         printf("[!]CUDA error:computeActiveMatter: %s\n", cudaGetErrorString(error));
         exit(1);
     }
+
+    t2 = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(t2 - t1).count();
+    cout << "Compute Time: " << duration << "ms" << endl;
 
 
 //***********************************************************
