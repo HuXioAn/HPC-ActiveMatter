@@ -40,8 +40,8 @@ typedef struct activePara_s
 using arrayPtr = float*;
 
 //0-1 float random
-mt19937 radomGen;
-uniform_real_distribution<float> radomDist;
+mt19937 randomGen;
+uniform_real_distribution<float> randomDist;
 
 void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
 
@@ -71,8 +71,8 @@ int main(int argc, char* argv[]){
         .observeRadius = 1.0,
     };
 
-    radomGen = mt19937(gPara.randomSeed);
-    radomDist = uniform_real_distribution<float>(0,1);
+    randomGen = mt19937(gPara.randomSeed);
+    randomDist = uniform_real_distribution<float>(0,1);
 
     //initialize the data
     arrayPtr posX(new float[gPara.birdNum]);
@@ -82,13 +82,13 @@ int main(int argc, char* argv[]){
 
     for(int i=0; i < gPara.birdNum; i++){
         //randomize the pos and theta
-        auto randomFloat = radomDist(radomGen);
+        auto randomFloat = randomDist(randomGen);
         posX[i] = randomFloat * gPara.fieldLength;
 
-        randomFloat = radomDist(radomGen);
+        randomFloat = randomDist(randomGen);
         posY[i] = randomFloat * gPara.fieldLength;
 
-        randomFloat = radomDist(radomGen);
+        randomFloat = randomDist(randomGen);
         theta[i] = randomFloat * M_PI * 2;
     }
 
@@ -179,7 +179,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
 
                 
             }
-            tempTheta[bird] = atan2(sy, sx) + (radomDist(radomGen) - 0.5) * aPara.fluctuation; //new theta
+            tempTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
         }
         //copy, could be dual-buffer
         //copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
