@@ -235,7 +235,8 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
             }
         }
         thetaTemp[bird] = atan2f(sy, sx) + (curand_uniform(&state) - 0.5) * aPara->fluctuation; //new theta
-    
+
+        __syncthreads();
 
         //dual-buffer, swap ptr
         auto tempPtr = theta;
