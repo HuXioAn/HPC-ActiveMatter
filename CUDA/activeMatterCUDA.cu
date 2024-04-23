@@ -21,7 +21,7 @@ Create Time: 22/04/24
 using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
-constexpr bool OUTPUT_TO_FILE = true;
+constexpr bool OUTPUT_TO_FILE = false;
 
 typedef struct generalPara_s
 {
@@ -51,9 +51,16 @@ mt19937 randomGen;
 uniform_real_distribution<float> randomDist;
 
 __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
-                                    arrayPtr posX, arrayPtr posY, arrayPtr theta, arrayPtr thetaTemp);
-
+                                    arrayPtr posX, arrayPtr posXTemp,
+                                    arrayPtr posY, arrayPtr posYTemp,
+                                    arrayPtr theta,arrayPtr thetaTemp );
 __host__ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
+
+__host__ inline void swapPtr(arrayPtr &p1, arrayPtr &p2){
+    arrayPtr temp = p1;
+    p1 = p2;
+    p2 = temp;
+}
 
 __host__ int main(int argc, char* argv[]){
 
@@ -112,9 +119,21 @@ __host__ int main(int argc, char* argv[]){
         exit(-1);
     }
 
+    arrayPtr posXTempCuda;
+    if(cudaSuccess != cudaMalloc(&posXTempCuda, size)){
+        printf("[!]Unable to alocate the posX temp Cuda mem.");
+        exit(-1);
+    }
+
     arrayPtr posYCuda;
     if(cudaSuccess != cudaMalloc(&posYCuda, size)){
         printf("[!]Unable to alocate the posY Cuda mem.");
+        exit(-1);
+    }
+
+    arrayPtr posYTempCuda;
+    if(cudaSuccess != cudaMalloc(&posYTempCuda, size)){
+        printf("[!]Unable to alocate the posY temp Cuda mem.");
         exit(-1);
     }
 
@@ -155,6 +174,10 @@ __host__ int main(int argc, char* argv[]){
     auto threadPerBlock = 256;
     auto blockPerGrid = (gPara.birdNum + threadPerBlock - 1) / threadPerBlock;
 
+    cudaEvent_t stream1PeriodEvent, stream2PeriodEvent;
+    cudaEventCreate(&stream1PeriodEvent);
+    cudaEventCreate(&stream2PeriodEvent);
+
 
     using namespace std::chrono;
     high_resolution_clock::time_point t1, t2;
@@ -182,24 +205,31 @@ __host__ int main(int argc, char* argv[]){
 
     for(int step=0; step < gPara.totalStep; step++){
 
-        computeActiveMatter<<<blockPerGrid, threadPerBlock>>>(gParaCuda, aParaCuda, posXCuda, posYCuda, thetaCuda, thetaTempCuda);
-        cudaDeviceSynchronize(); 
+        computeActiveMatter<<<blockPerGrid, threadPerBlock>>>
+            (gParaCuda, aParaCuda, 
+            posXCuda, posXTempCuda,
+            posYCuda, posYTempCuda,
+            thetaCuda, thetaTempCuda);
+        
 
         //dual-buffer, swap ptr
-        auto tempPtr = thetaCuda;
-        thetaCuda = thetaTempCuda;
-        thetaTempCuda = tempPtr;
+        swapPtr(posXCuda, posXTempCuda);
+        swapPtr(posYCuda, posYTempCuda);
+        swapPtr(thetaCuda, thetaTempCuda);
 
-        cudaMemcpy(posX, posXCuda, size, cudaMemcpyDeviceToHost);
-        cudaMemcpy(posY, posYCuda, size, cudaMemcpyDeviceToHost);
-        cudaMemcpy(theta, thetaCuda, size, cudaMemcpyDeviceToHost);
+        if(OUTPUT_TO_FILE){
+            cudaMemcpy(posX, posXCuda, size, cudaMemcpyDeviceToHost);
+            cudaMemcpy(posY, posYCuda, size, cudaMemcpyDeviceToHost);
+            cudaMemcpy(theta, thetaCuda, size, cudaMemcpyDeviceToHost);
 
-        if(OUTPUT_TO_FILE)outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+            outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+        }
+        
 
     }
 
     if(OUTPUT_TO_FILE)outputFile.close();
-
+    cudaDeviceSynchronize(); 
        
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
@@ -224,7 +254,9 @@ __host__ int main(int argc, char* argv[]){
 
 
 __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
-                                    arrayPtr posX, arrayPtr posY, arrayPtr theta,arrayPtr thetaTemp ){
+                                    arrayPtr posX, arrayPtr posXTemp,
+                                    arrayPtr posY, arrayPtr posYTemp,
+                                    arrayPtr theta,arrayPtr thetaTemp ){
 
     auto bird = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -238,12 +270,12 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
 
 
     //move
-    posX[bird] += gPara->deltaTime * cosf(theta[bird]);
-    posY[bird] += gPara->deltaTime * sinf(theta[bird]);
+    posXTemp[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
+    posYTemp[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
 
     //in the field
-    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
-    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
+    posXTemp[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
+    posYTemp[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
 
     
     //adjust theta
