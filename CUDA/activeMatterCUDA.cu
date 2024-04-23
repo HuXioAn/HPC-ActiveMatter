@@ -53,6 +53,8 @@ uniform_real_distribution<float> randomDist;
 __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, arrayPtr posY, arrayPtr theta, arrayPtr thetaTemp);
 
+__host__ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
+
 __host__ int main(int argc, char* argv[]){
 
     auto birdNum = DEFAULT_BIRD_NUM;
@@ -158,11 +160,47 @@ __host__ int main(int argc, char* argv[]){
     high_resolution_clock::time_point t1, t2;
     t1 = high_resolution_clock::now();
 
-    computeActiveMatter<<<blockPerGrid, threadPerBlock>>>(gParaCuda, aParaCuda, posXCuda, posYCuda, thetaCuda, thetaTempCuda);
-    //output
 
 
-    cudaDeviceSynchronize();    
+    ofstream outputFile;
+    if(OUTPUT_TO_FILE){//save the parameter,first step to file
+        outputFile = ofstream(gPara.outputPath, ios::trunc);
+        if(outputFile.is_open()){
+            outputFile << std::fixed << std::setprecision(3);
+        }else{
+            cout << "[!]Unable to open output file: " << gPara.outputPath << endl;
+            exit(-1);
+        }
+
+        //para
+        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
+            ",birdNum=" << gPara.birdNum << "}" << endl;
+        //data
+        outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+    }
+
+
+    for(int step=0; step < gPara.totalStep; step++){
+
+        computeActiveMatter<<<blockPerGrid, threadPerBlock>>>(gParaCuda, aParaCuda, posXCuda, posYCuda, thetaCuda, thetaTempCuda);
+        cudaDeviceSynchronize(); 
+
+        //dual-buffer, swap ptr
+        auto tempPtr = thetaCuda;
+        thetaCuda = thetaTempCuda;
+        thetaTempCuda = tempPtr;
+
+        cudaMemcpy(posX, posXCuda, size, cudaMemcpyDeviceToHost);
+        cudaMemcpy(posY, posYCuda, size, cudaMemcpyDeviceToHost);
+        cudaMemcpy(theta, thetaCuda, size, cudaMemcpyDeviceToHost);
+
+        if(OUTPUT_TO_FILE)outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+
+    }
+
+    if(OUTPUT_TO_FILE)outputFile.close();
+
+       
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
         printf("[!]CUDA error:computeActiveMatter: %s\n", cudaGetErrorString(error));
@@ -198,57 +236,57 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
     float observeRadiusSqr = powf(aPara->observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara->observeRadius / sqrtf(2);
 
-    for(int step=0; step < gPara->totalStep; step++){ //steps
 
-        //move
-        posX[bird] += gPara->deltaTime * cosf(theta[bird]);
-        posY[bird] += gPara->deltaTime * sinf(theta[bird]);
+    //move
+    posX[bird] += gPara->deltaTime * cosf(theta[bird]);
+    posY[bird] += gPara->deltaTime * sinf(theta[bird]);
 
-        //in the field
-        posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
-        posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
+    //in the field
+    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
+    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
 
+    
+    //adjust theta
+    float sx = 0,sy = 0; 
+
+    for(int oBird=0; oBird < gPara->birdNum; oBird++){ //observe other birds, self included
+
+        auto xDiffAbs = fabsf(posX[bird]-posX[oBird]);
+        auto yDiffAbs = fabsf(posY[bird]-posY[oBird]);
         
-        //adjust theta
-        float sx = 0,sy = 0; 
+        if((xDiffAbs > aPara->observeRadius) || 
+            (yDiffAbs > aPara->observeRadius) 
+            || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
+            )continue;//ignore birds outside the circumscribed square and 4 corners
 
-        for(int oBird=0; oBird < gPara->birdNum; oBird++){ //observe other birds, self included
-
-            auto xDiffAbs = fabsf(posX[bird]-posX[oBird]);
-            auto yDiffAbs = fabsf(posY[bird]-posY[oBird]);
-            
-            if((xDiffAbs > aPara->observeRadius) || 
-                (yDiffAbs > aPara->observeRadius) 
-                || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
-                )continue;//ignore birds outside the circumscribed square and 4 corners
-
-            if((xDiffAbs < inscribedSquareSideLengthHalf) && 
-                (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
+        if((xDiffAbs < inscribedSquareSideLengthHalf) && 
+            (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
+            sx += cosf(theta[oBird]);
+            sy += sinf(theta[oBird]);
+        }else{
+            auto distPow2 = powf(xDiffAbs, 2) + powf(yDiffAbs, 2);
+            if(distPow2 < observeRadiusSqr){ //observed
                 sx += cosf(theta[oBird]);
                 sy += sinf(theta[oBird]);
-            }else{
-                auto distPow2 = powf(xDiffAbs, 2) + powf(yDiffAbs, 2);
-                if(distPow2 < observeRadiusSqr){ //observed
-                    sx += cosf(theta[oBird]);
-                    sy += sinf(theta[oBird]);
-                }
             }
         }
-        thetaTemp[bird] = atan2f(sy, sx) + (curand_uniform(&state) - 0.5) * aPara->fluctuation; //new theta
-
-        __syncthreads();
-
-        //dual-buffer, swap ptr
-        auto tempPtr = theta;
-        theta = thetaTemp;
-        thetaTemp = tempPtr;
-
-        
     }
+    thetaTemp[bird] = atan2f(sy, sx) + (curand_uniform(&state) - 0.5) * aPara->fluctuation; //new theta
+
+    __syncthreads();
+
 
 
 }
 
-__host__ int outputToFile(generalPara_t gPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
+__host__ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
+    //add current data to the file
+    outputFile << "{" ;
+    for(int bird=0; bird < birdNum; bird++){
+        outputFile << posX[bird] << "," << posY[bird] << "," << theta[bird] << ";";
+    }
+    outputFile << "}" << endl;
+    return 0;
+}
 
 
