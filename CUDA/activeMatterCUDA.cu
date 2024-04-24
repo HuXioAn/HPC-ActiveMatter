@@ -51,8 +51,8 @@ mt19937 randomGen;
 uniform_real_distribution<float> randomDist;
 
 __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
-                                    arrayPtr posX, arrayPtr posXTemp,
-                                    arrayPtr posY, arrayPtr posYTemp,
+                                    arrayPtr posX, 
+                                    arrayPtr posY, 
                                     arrayPtr theta,arrayPtr thetaTemp );
 __host__ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
 
@@ -119,21 +119,9 @@ __host__ int main(int argc, char* argv[]){
         exit(-1);
     }
 
-    arrayPtr posXTempCuda;
-    if(cudaSuccess != cudaMalloc(&posXTempCuda, size)){
-        printf("[!]Unable to alocate the posX temp Cuda mem.");
-        exit(-1);
-    }
-
     arrayPtr posYCuda;
     if(cudaSuccess != cudaMalloc(&posYCuda, size)){
         printf("[!]Unable to alocate the posY Cuda mem.");
-        exit(-1);
-    }
-
-    arrayPtr posYTempCuda;
-    if(cudaSuccess != cudaMalloc(&posYTempCuda, size)){
-        printf("[!]Unable to alocate the posY temp Cuda mem.");
         exit(-1);
     }
 
@@ -207,14 +195,12 @@ __host__ int main(int argc, char* argv[]){
 
         computeActiveMatter<<<blockPerGrid, threadPerBlock>>>
             (gParaCuda, aParaCuda, 
-            posXCuda, posXTempCuda,
-            posYCuda, posYTempCuda,
+            posXCuda, 
+            posYCuda, 
             thetaCuda, thetaTempCuda);
         
 
         //dual-buffer, swap ptr
-        swapPtr(posXCuda, posXTempCuda);
-        swapPtr(posYCuda, posYTempCuda);
         swapPtr(thetaCuda, thetaTempCuda);
 
         
@@ -259,8 +245,8 @@ __host__ int main(int argc, char* argv[]){
 
 
 __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
-                                    arrayPtr posX, arrayPtr posXTemp,
-                                    arrayPtr posY, arrayPtr posYTemp,
+                                    arrayPtr posX, 
+                                    arrayPtr posY, 
                                     arrayPtr theta,arrayPtr thetaTemp ){
 
     auto bird = blockDim.x * blockIdx.x + threadIdx.x;
@@ -275,12 +261,12 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
 
 
     //move
-    posXTemp[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
-    posYTemp[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
+    posX[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
+    posY[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
 
     //in the field
-    posXTemp[bird] = fmod(posXTemp[bird]+gPara->fieldLength, gPara->fieldLength);
-    posYTemp[bird] = fmod(posYTemp[bird]+gPara->fieldLength, gPara->fieldLength);
+    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
+    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
 
     
     //adjust theta
