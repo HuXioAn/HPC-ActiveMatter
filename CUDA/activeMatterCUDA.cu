@@ -21,7 +21,7 @@ Create Time: 22/04/24
 using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
-constexpr bool OUTPUT_TO_FILE = false;
+constexpr bool OUTPUT_TO_FILE = true;
 
 typedef struct generalPara_s
 {
@@ -217,7 +217,10 @@ __host__ int main(int argc, char* argv[]){
         swapPtr(posYCuda, posYTempCuda);
         swapPtr(thetaCuda, thetaTempCuda);
 
+        
         if(OUTPUT_TO_FILE){
+            cudaDeviceSynchronize(); 
+
             cudaMemcpy(posX, posXCuda, size, cudaMemcpyDeviceToHost);
             cudaMemcpy(posY, posYCuda, size, cudaMemcpyDeviceToHost);
             cudaMemcpy(theta, thetaCuda, size, cudaMemcpyDeviceToHost);
@@ -228,9 +231,11 @@ __host__ int main(int argc, char* argv[]){
 
     }
 
-    if(OUTPUT_TO_FILE)outputFile.close();
+    
     cudaDeviceSynchronize(); 
-       
+
+    if(OUTPUT_TO_FILE)outputFile.close();
+
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
         printf("[!]CUDA error:computeActiveMatter: %s\n", cudaGetErrorString(error));
@@ -274,8 +279,8 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
     posYTemp[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
 
     //in the field
-    posXTemp[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
-    posYTemp[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
+    posXTemp[bird] = fmod(posXTemp[bird]+gPara->fieldLength, gPara->fieldLength);
+    posYTemp[bird] = fmod(posYTemp[bird]+gPara->fieldLength, gPara->fieldLength);
 
     
     //adjust theta
