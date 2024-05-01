@@ -97,9 +97,9 @@ int main(int argc, char* argv[]){
     for(int i = 1; i < Max_Thread_Num; i++)
         computeActiveMatter(gPara, aPara, posX, posY, theta,i);
 
-    delete[] posX;
-    delete[] posY;
-    delete[] theta;
+    //delete[] posX;
+    //delete[] posY;
+    //delete[] theta;
 
     return 0;
 }
@@ -144,8 +144,8 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
     for(int step=0; step < gPara.totalStep; step++){ //steps
         #pragma omp parallel
         {
-            #pragma omp for
-                for(int bird=0; bird < gPara.birdNum; bird++){ //move
+            int id = omp_get_thread_num();
+                for(int bird=0; bird < gPara.birdNum; bird+=threadNum){ //move
                     //move
                     posX[bird] += gPara.deltaTime * cos(theta[bird]);
                     posY[bird] += gPara.deltaTime * sin(theta[bird]);
@@ -156,8 +156,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
 
                 }
             //adjust theta
-            #pragma omp for
-                for(int bird=0; bird < gPara.birdNum; bird++){ //for each bird
+                for(int bird=0; bird < gPara.birdNum; bird+=threadNum){ //for each bird
 
                     //float meanTheta = theta[bird];
                     float sx = 0,sy = 0; 
@@ -191,7 +190,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             //copy, could be dual-buffer
             //copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
             //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
-        }
+
             //dual-buffer, swap ptr
             auto tempPtr = theta;
             theta = tempTheta;
@@ -199,12 +198,12 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             
             if(OUTPUT_TO_FILE)
                 outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-        
+        }
     }
     end_time = omp_get_wtime();
     printf("Execution time of %d threads:%lf",threadNum, end_time - start_time);
     if(OUTPUT_TO_FILE)outputFile.close();
-    delete[] tempTheta;
+    //delete[] tempTheta;
 }
 
 
