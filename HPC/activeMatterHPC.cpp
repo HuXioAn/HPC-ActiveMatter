@@ -94,7 +94,7 @@ int main(int argc, char* argv[]){
     }
 
     //computing
-    for(int i = 1; i < Max_Thread_Num; i++)
+    for(int i = 1; i <= Max_Thread_Num; i++)
         computeActiveMatter(gPara, aPara, posX, posY, theta,i);
 
     delete[] posX;
@@ -202,7 +202,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         
     }
     end_time = omp_get_wtime();
-    printf("Execution time of %d threads:%lf",threadNum, end_time - start_time);
+    printf("Execution time of %d threads:%lf\n",threadNum, end_time - start_time);
     if(OUTPUT_TO_FILE)outputFile.close();
     delete[] tempTheta;
 }

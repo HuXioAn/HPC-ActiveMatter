@@ -94,12 +94,12 @@ int main(int argc, char* argv[]){
     }
 
     //computing
-    for(int i = 1; i < Max_Thread_Num; i++)
+    for(int i = 1; i <= Max_Thread_Num; i++)
         computeActiveMatter(gPara, aPara, posX, posY, theta,i);
 
-    //delete[] posX;
-    //delete[] posY;
-    //delete[] theta;
+    delete[] posX;
+    delete[] posY;
+    delete[] theta;
 
     return 0;
 }
@@ -192,18 +192,19 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
 
             //dual-buffer, swap ptr
+	}
             auto tempPtr = theta;
             theta = tempTheta;
             tempTheta = tempPtr;
             
             if(OUTPUT_TO_FILE)
                 outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-        }
+        
     }
     end_time = omp_get_wtime();
-    printf("Execution time of %d threads:%lf",threadNum, end_time - start_time);
+    printf("Execution time of %d threads:%lf\n",threadNum, end_time - start_time);
     if(OUTPUT_TO_FILE)outputFile.close();
-    //delete[] tempTheta;
+    delete[] tempTheta;
 }
 
 
