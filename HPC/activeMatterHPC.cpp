@@ -16,7 +16,7 @@ using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
 constexpr bool OUTPUT_TO_FILE = true;
-const int Max_Thread_Num = 128;
+const int Max_Thread_Num = 32;
 
 typedef struct generalPara_s
 {
@@ -97,9 +97,9 @@ int main(int argc, char* argv[]){
     for(int i = 1; i < Max_Thread_Num; i++)
         computeActiveMatter(gPara, aPara, posX, posY, theta,i);
 
-    delete[] posX;
-    delete[] posY;
-    delete[] theta;
+    //delete[] posX;
+    //delete[] posY;
+    //delete[] theta;
 
     return 0;
 }
@@ -122,7 +122,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
     float observeRadiusSqr = pow(aPara.observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara.observeRadius / sqrt(2);
     double start_time, end_time;
-    omp_set_num_teams(threadNum);
+    omp_set_num_threads(threadNum);
     start_time = omp_get_wtime();
 
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
@@ -196,14 +196,15 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             auto tempPtr = theta;
             theta = tempTheta;
             tempTheta = tempPtr;
-
+            
             if(OUTPUT_TO_FILE)
                 outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
         }
     }
-
+    end_time = omp_get_wtime();
+    printf("Execution time of %d threads:%lf",threadNum, end_time - start_time);
     if(OUTPUT_TO_FILE)outputFile.close();
-    delete[] tempTheta;
+    //delete[] tempTheta;
 }
 
 
