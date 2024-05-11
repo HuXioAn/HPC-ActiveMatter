@@ -201,7 +201,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         
     }
     end_time = omp_get_wtime();
-    printf("Execution time of %d threads:%lf\n",omp_get_num_threads(), end_time - start_time);
+    printf("Execution time of %d threads:%lf\n",omp_get_max_threads(), end_time - start_time);
     if(OUTPUT_TO_FILE)outputFile.close();
     delete[] tempTheta;
 }
