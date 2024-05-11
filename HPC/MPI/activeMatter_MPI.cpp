@@ -77,7 +77,6 @@ int main(int argc, char *argv[])
     // Generate initial conditions on root and distribute
     vector<float> allPosX(gPara.birdNum), allPosY(gPara.birdNum), allTheta(gPara.birdNum);
     double startTime = 0;
-    double startTime = 0;
     if (rank == 0)
     {
         for (int i = 0; i < gPara.birdNum; i++)
@@ -86,7 +85,6 @@ int main(int argc, char *argv[])
             allPosY[i] = randomDist(randomGen) * gPara.fieldLength;
             allTheta[i] = randomDist(randomGen) * 2 * M_PI;
         }
-        startTime = MPI_Wtime();
         startTime = MPI_Wtime();
     }
     MPI_Scatter(allPosX.data(), localBirdNum, MPI_FLOAT, posX.data(), localBirdNum, MPI_FLOAT, 0, MPI_COMM_WORLD);
