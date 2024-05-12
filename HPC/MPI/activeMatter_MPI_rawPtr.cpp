@@ -89,10 +89,6 @@ int main(int argc, char *argv[])
         }
         startTime = MPI_Wtime();
     }
-    //distribute random setup
-    // MPI_Scatter(allPosX.data(), localBirdNum, MPI_FLOAT, posX.data(), localBirdNum, MPI_FLOAT, 0, MPI_COMM_WORLD);
-    // MPI_Scatter(allPosY.data(), localBirdNum, MPI_FLOAT, posY.data(), localBirdNum, MPI_FLOAT, 0, MPI_COMM_WORLD);
-    // MPI_Scatter(allTheta.data(), localBirdNum, MPI_FLOAT, theta.data(), localBirdNum, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
     MPI_Bcast(posX, gPara.birdNum, MPI_FLOAT, 0, MPI_COMM_WORLD);
     MPI_Bcast(posY, gPara.birdNum, MPI_FLOAT, 0, MPI_COMM_WORLD);
@@ -108,6 +104,8 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+
+
 int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
     //add current data to the file
     outputFile << "{" ;
@@ -117,6 +115,8 @@ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& po
     outputFile << "}" << endl;
     return 0;
 }
+
+
 
 void computeActiveMatter(generalPara_s gPara, activePara_s aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta, int rank, int size)
 {
@@ -146,10 +146,6 @@ void computeActiveMatter(generalPara_s gPara, activePara_s aPara, arrayPtr& posX
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
 
-    // // Gather positions to all processes
-    // MPI_Allgather(posX.data(), localBirdNum, MPI_FLOAT, allPosX.data(), localBirdNum, MPI_FLOAT, MPI_COMM_WORLD);
-    // MPI_Allgather(posY.data(), localBirdNum, MPI_FLOAT, allPosY.data(), localBirdNum, MPI_FLOAT, MPI_COMM_WORLD);
-    // MPI_Allgather(theta.data(), localBirdNum, MPI_FLOAT, allTheta.data(), localBirdNum, MPI_FLOAT, MPI_COMM_WORLD);
 
     for (int step = 0; step < gPara.totalStep; step++)
     {
@@ -195,7 +191,6 @@ void computeActiveMatter(generalPara_s gPara, activePara_s aPara, arrayPtr& posX
                 }
 
             }
-            // tempTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation;
             tempTheta[bird - localBirdOffset] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation;
         }
 
