@@ -4,6 +4,7 @@
 *.a
 *.s
 *dSYM
+*.plot
 
 .vscode/
 .history/
