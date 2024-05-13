@@ -93,7 +93,6 @@ int main(int argc, char* argv[]){
     }
 
     //computing
-   
     computeActiveMatter(gPara, aPara, posX, posY, theta);
 
     delete[] posX;
@@ -158,9 +157,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             #pragma omp for
                 for(int bird=0; bird < gPara.birdNum; bird++){ //for each bird
 
-                    //float meanTheta = theta[bird];
                     float sx = 0,sy = 0; 
-
                     for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
 
                         auto xDiffAbs = abs(posX[bird]-posX[oBird]);
@@ -182,14 +179,10 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                                 sy += sin(theta[oBird]);
                             }
                         }
-
                         
                     }
                     tempTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
                 }
-            //copy, could be dual-buffer
-            //copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
-            //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
         }
             //dual-buffer, swap ptr
             auto tempPtr = theta;
@@ -200,8 +193,10 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                 outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
         
     }
+
     end_time = omp_get_wtime();
     printf("Execution time of %d threads:%lf\n",omp_get_max_threads(), end_time - start_time);
+
     if(OUTPUT_TO_FILE)outputFile.close();
     delete[] tempTheta;
 }
