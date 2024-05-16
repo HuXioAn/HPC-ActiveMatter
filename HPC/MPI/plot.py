@@ -10,11 +10,10 @@ def main():
         content = file.read()
 
     # 提取基本参数
-    parameters = re.search(r'generalParameter\{fieldLength=(\d+\.\d+),totalStep=(\d+),birdNum=(\d+),randomSeed=(\d+)\}', content)
+    parameters = re.search(r'generalParameter\{fieldLength=(\d+\.\d+),totalStep=(\d+),birdNum=(\d+)\}', content)
     field_length = float(parameters.group(1))
     total_step = int(parameters.group(2))
     bird_num = int(parameters.group(3))
-    random_Seed = int(parameters.group(4))
 
 
     posX = np.zeros(bird_num)

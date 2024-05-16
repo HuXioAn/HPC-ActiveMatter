@@ -11,6 +11,7 @@ Create Time: 02/04/24
 #include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <chrono>
 
 using namespace std;
 
@@ -92,9 +93,16 @@ int main(int argc, char* argv[]){
         theta[i] = randomFloat * M_PI * 2;
     }
 
+    using namespace std::chrono;
+    high_resolution_clock::time_point t1, t2;
+    t1 = high_resolution_clock::now();
+
     //computing
-    
     computeActiveMatter(gPara, aPara, posX, posY, theta);
+
+    t2 = high_resolution_clock::now();
+    auto duration = duration_cast<milliseconds>(t2 - t1).count();
+    cout << "Bird: " << gPara.birdNum << " Step: " << gPara.totalStep << " Compute Time: " << duration << "ms" << endl;
 
     delete[] posX;
     delete[] posY;
@@ -131,8 +139,12 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         }
 
         //para
-        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
-            ",birdNum=" << gPara.birdNum << "}" << endl;
+        outputFile << "generalParameter{" 
+        << "fieldLength=" << gPara.fieldLength 
+        << ",totalStep=" << gPara.totalStep 
+        << ",birdNum=" << gPara.birdNum 
+        << ",randomSeed=" << gPara.randomSeed 
+        << "}" << endl;
         //data
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
