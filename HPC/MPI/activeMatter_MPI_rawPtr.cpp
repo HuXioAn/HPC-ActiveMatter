@@ -140,8 +140,12 @@ void computeActiveMatter(generalPara_s gPara, activePara_s aPara, arrayPtr& posX
         }
 
         //para
-        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
-            ",birdNum=" << gPara.birdNum << "}" << endl;
+        outputFile << "generalParameter{" 
+        << "fieldLength=" << gPara.fieldLength 
+        << ",totalStep=" << gPara.totalStep 
+        << ",birdNum=" << gPara.birdNum 
+        << ",randomSeed=" << gPara.randomSeed 
+        << "}" << endl;
         //data
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
