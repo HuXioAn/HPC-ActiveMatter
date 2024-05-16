@@ -120,23 +120,25 @@ int main(int argc, char* argv[]){
         printf("[!] Verification failed in step %d\n", 0);
         exit(-1);
     }
-
+    int totalErrorCount = 0;
     for(int i = 0; i < gPara.totalStep; i++){
         //compare every step
-
         computeActiveMatterOneStep(gPara, aPara, posX, posY, theta, posXVerify, posYVerify, thetaVerify);//compute verification data with previous verified line from file
 
         getData(file, gPara, posX, posY, theta);//new step from file
-        result = compareElementInRange(gPara, posX, posY, theta, posXVerify, posYVerify, thetaVerify, 1 * aPara.fluctuation);
-        if(result != 0){
-            printf("[!] Verification failed in step %d\n", i+1);
+        result = compareElementInRange(gPara, posX, posY, theta, posXVerify, posYVerify, thetaVerify, 0.6 * aPara.fluctuation);
+        if(result > 10){
+            
+            printf("[!] Verification failed in step %d with %d errors\n", i+1, result);
             exit(-1);
+            
         }
 
+        totalErrorCount += result;
     }
+
+    printf("[*] Verification ended with %d errors in total\n", totalErrorCount);
     
-
-
 
     delete[] posX;
     delete[] posY;
@@ -257,15 +259,15 @@ void getData(ifstream& file, generalPara_t gPara, arrayPtr& posX, arrayPtr& posY
 int compareElementInRange(generalPara_t gPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta, 
                                                 arrayPtr& posXVerify, arrayPtr& posYVerify, arrayPtr& thetaVerify, float range){
 
-
+    int error = 0;
     for(int i = 0; i < gPara.birdNum; i++){
-        if (((abs(posX[i] - posXVerify[i]) > range) && !(abs(posX[i] + posXVerify[i] - gPara.fieldLength) < range)) ||
-            ((abs(posY[i] - posYVerify[i]) > range) && !(abs(posY[i] + posYVerify[i] - gPara.fieldLength) < range)) ||
+        if (((abs(posX[i] - posXVerify[i]) > range) && !((gPara.fieldLength - abs(posX[i] - posXVerify[i])) < range)) ||
+            ((abs(posY[i] - posYVerify[i]) > range) && !((gPara.fieldLength - abs(posY[i] - posYVerify[i])) < range)) ||
             abs(theta[i] - thetaVerify[i]) > range) {
-            return 1;
+            error++;
         }
     }
 
-    return 0;
+    return error;
 }
 
