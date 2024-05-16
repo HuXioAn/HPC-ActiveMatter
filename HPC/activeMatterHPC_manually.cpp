@@ -145,7 +145,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         #pragma omp parallel
         {
             int id = omp_get_thread_num();
-                for(int bird=0; bird < gPara.birdNum; bird+=threadNum){ //move
+                for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //move
                     //move
                     posX[bird] += gPara.deltaTime * cos(theta[bird]);
                     posY[bird] += gPara.deltaTime * sin(theta[bird]);
@@ -156,7 +156,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
 
                 }
             //adjust theta
-                for(int bird=0; bird < gPara.birdNum; bird+=threadNum){ //for each bird
+                for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //for each bird
 
                     //float meanTheta = theta[bird];
                     float sx = 0,sy = 0; 

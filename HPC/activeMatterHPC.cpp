@@ -1,7 +1,7 @@
 /*
 cpp parallel ActiveMatter simulation
 Auther: Yitong
-Create Time: 01/05/24
+Create Time: 16/05/24
 
 */
 
@@ -141,9 +141,9 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
 
-    for(int step=0; step < gPara.totalStep; step++){ //steps
-        #pragma omp parallel
+    #pragma omp parallel
         {
+        for(int step=0; step < gPara.totalStep; step++){ //steps
             #pragma omp for
                 for(int bird=0; bird < gPara.birdNum; bird++){ //move
                     //move
@@ -191,15 +191,17 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             //copy, could be dual-buffer
             //copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
             //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
-        }
-            //dual-buffer, swap ptr
-            auto tempPtr = theta;
-            theta = tempTheta;
-            tempTheta = tempPtr;
+            int id = omp_get_thread_num();
+            if(id == 0){
+                auto tempPtr = theta;
+                theta = tempTheta;
+                tempTheta = tempPtr;
             
-            if(OUTPUT_TO_FILE)
-                outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-        
+                if(OUTPUT_TO_FILE)
+                    outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+            }
+            //dual-buffer, swap ptr
+        }
     }
     end_time = omp_get_wtime();
     printf("Execution time of %d threads:%lf",threadNum, end_time - start_time);
