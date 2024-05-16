@@ -1,0 +1,21 @@
+cpuspernode 256
+16384 birds
+srun -n 1 ./o.out
+Execution time of 256 threads:26.213083
+srun -n 1 ./m.out
+Execution time of 256 threads:25.905063
+srun -n 1 ./a.out
+Execution time of 256 threads:28.556576
+srun -n 1 ./c.out
+Execution time of 256 threads:32.265870
+
+1000 bird
+Execution time of 1 threads:9.631409
+Execution time of 2 threads:4.216274
+Execution time of 4 threads:2.466194
+Execution time of 8 threads:1.529385
+Execution time of 16 threads:1.128762
+Execution time of 32 threads:0.922558
+Execution time of 64 threads:0.854657
+Execution time of 128 threads:0.763158
+Execution time of 256 threads:0.869319

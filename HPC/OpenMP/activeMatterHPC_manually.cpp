@@ -1,9 +1,9 @@
-/*
-cpp parallel ActiveMatter simulation
-Auther: Yitong
-Create Time: 01/05/24
-
-*/
+/*!
+ * \file activeMatterHPC_manually.cpp
+ * \brief Parallel Active Matter simulation using OpenMP.
+ * \author Yitong
+ * \date 016/05/24
+ */
 
 #include <iostream>
 #include <cmath>
@@ -16,7 +16,7 @@ using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
 constexpr bool OUTPUT_TO_FILE = true;
-const int Max_Thread_Num = 32;
+const int Max_Thread_Num = 256;
 
 typedef struct generalPara_s
 {
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]){
 
     //computing
     //for(int i = 1; i <= Max_Thread_Num; i++)
-        computeActiveMatter(gPara, aPara, posX, posY, theta,256);
+    computeActiveMatter(gPara, aPara, posX, posY, theta, Max_Thread_Num);
 
     delete[] posX;
     delete[] posY;
@@ -140,10 +140,13 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         //data
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
+
+    //make the whole calculation part parallel
     #pragma omp parallel
     {
         for(int step=0; step < gPara.totalStep; step++){ //steps
             int id = omp_get_thread_num();
+            //manually allocate threads
                 for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //move
                     //move
                     posX[bird] += gPara.deltaTime * cos(theta[bird]);
@@ -154,6 +157,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                     posY[bird] = fmod(posY[bird]+gPara.fieldLength, gPara.fieldLength);
 
                 }
+                //use barrier to Synchronize
                 #pragma omp barrier
             //adjust theta
                 for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //for each bird
@@ -192,7 +196,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
 
             //dual-buffer, swap ptr
-	
+            //Only one thread update theta and output.
             #pragma omp barrier
             if(id == 0){
                 auto tempPtr = theta;
