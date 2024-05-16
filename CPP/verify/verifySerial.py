@@ -29,7 +29,7 @@ def main():
 
     #compute the verification output
     verifyOutputName = sys.argv[1] + ".verify"
-    command = "./activeMatter_rawPtr_verify.out {} {} {} {}".format(total_step, bird_num, random_Seed, verifyOutputName)
+    command = "./activeMatter_rawPtr_verifySerial.out {} {} {} {}".format(total_step, bird_num, random_Seed, verifyOutputName)
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     
     if result.returncode != 0:
