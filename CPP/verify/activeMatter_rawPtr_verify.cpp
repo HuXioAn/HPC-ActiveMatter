@@ -259,8 +259,8 @@ int compareElementInRange(generalPara_t gPara, arrayPtr& posX, arrayPtr& posY, a
 
 
     for(int i = 0; i < gPara.birdNum; i++){
-        if (((abs(posX[i] - posXVerify[i]) > range) && !(abs(posX[i] + posXVerify[i] - 10) < range)) ||
-            ((abs(posY[i] - posYVerify[i]) > range) && !(abs(posY[i] + posYVerify[i] - 10) < range)) ||
+        if (((abs(posX[i] - posXVerify[i]) > range) && !(abs(posX[i] + posXVerify[i] - gPara.fieldLength) < range)) ||
+            ((abs(posY[i] - posYVerify[i]) > range) && !(abs(posY[i] + posYVerify[i] - gPara.fieldLength) < range)) ||
             abs(theta[i] - thetaVerify[i]) > range) {
             return 1;
         }
