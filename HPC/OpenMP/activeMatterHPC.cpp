@@ -17,7 +17,6 @@ using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 16000; 
 constexpr bool OUTPUT_TO_FILE = true;
-constexpr int CACHE_LINE_SIZE = 16;
 
 typedef struct generalPara_s
 {
@@ -77,9 +76,9 @@ int main(int argc, char* argv[]){
     randomDist = uniform_real_distribution<float>(0,1);
 
     //initialize the data
-    arrayPtr posX(new float[gPara.birdNum * CACHE_LINE_SIZE]);
-    arrayPtr posY(new float[gPara.birdNum * CACHE_LINE_SIZE]);
-    arrayPtr theta(new float[gPara.birdNum * CACHE_LINE_SIZE]);
+    arrayPtr posX(new float[gPara.birdNum]);
+    arrayPtr posY(new float[gPara.birdNum]);
+    arrayPtr theta(new float[gPara.birdNum]);
 
 
     for(int i=0; i < gPara.birdNum; i++){
@@ -107,7 +106,7 @@ int main(int argc, char* argv[]){
 int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
     //add current data to the file
     outputFile << "{" ;
-    for(int bird=0; bird < birdNum; bird+=CACHE_LINE_SIZE){
+    for(int bird=0; bird < birdNum; bird++){
         outputFile << posX[bird] << "," << posY[bird] << "," << theta[bird] << ";";
     }
     outputFile << "}" << endl;
@@ -117,7 +116,7 @@ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& po
 
 void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
 
-    arrayPtr tempTheta(new float[gPara.birdNum*CACHE_LINE_SIZE]);
+    arrayPtr tempTheta(new float[gPara.birdNum]);
     ofstream outputFile;
     float observeRadiusSqr = pow(aPara.observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara.observeRadius / sqrt(2);
@@ -150,7 +149,7 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         {
         for(int step=0; step < gPara.totalStep; step++){ //steps
             #pragma omp for
-                for(int bird=0; bird < gPara.birdNum; bird+=CACHE_LINE_SIZE){ //move
+                for(int bird=0; bird < gPara.birdNum; bird++){ //move
                     //move
                     posX[bird] += gPara.deltaTime * cos(theta[bird]);
                     posY[bird] += gPara.deltaTime * sin(theta[bird]);
@@ -162,10 +161,10 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                 }
             //adjust theta
             #pragma omp for
-                for(int bird=0; bird < gPara.birdNum; bird+=CACHE_LINE_SIZE){ //for each bird
+                for(int bird=0; bird < gPara.birdNum; bird++){ //for each bird
 
                     float sx = 0,sy = 0; 
-                    for(int oBird=0; oBird < gPara.birdNum; oBird+=CACHE_LINE_SIZE){ //observe other birds, self included
+                    for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
 
                         auto xDiffAbs = abs(posX[bird]-posX[oBird]);
                         auto yDiffAbs = abs(posY[bird]-posY[oBird]);

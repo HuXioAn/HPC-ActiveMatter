@@ -4,8 +4,6 @@ import re
 
 
 def main():
-
-
     with open('output.plot', 'r') as file:
         content = file.read()
 

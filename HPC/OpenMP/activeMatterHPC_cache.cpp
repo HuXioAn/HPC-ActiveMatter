@@ -1,7 +1,7 @@
 /*
 cpp parallel ActiveMatter simulation
 Auther: Yitong
-Create Time: 01/05/24
+Create Time: 16/05/24
 
 */
 
@@ -12,11 +12,12 @@ Create Time: 01/05/24
 #include <fstream>
 #include <iomanip>
 #include <omp.h>
+#include <cstdio>
 using namespace std;
 
-constexpr int DEFAULT_BIRD_NUM = 500; 
+constexpr int DEFAULT_BIRD_NUM = 16000; 
 constexpr bool OUTPUT_TO_FILE = true;
-const int Max_Thread_Num = 32;
+constexpr int CACHE_LINE_SIZE = 16;
 
 typedef struct generalPara_s
 {
@@ -24,7 +25,7 @@ typedef struct generalPara_s
     float deltaTime;
     int totalStep;
     int birdNum;
-
+    int birdNum_c;
     int randomSeed;
     string outputPath;
 
@@ -44,7 +45,7 @@ using arrayPtr = float*;
 mt19937 randomGen;
 uniform_real_distribution<float> randomDist;
 
-void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta,int threadNum);
+void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta);
 
 
 
@@ -62,6 +63,7 @@ int main(int argc, char* argv[]){
         .deltaTime = 0.2,
         .totalStep = 500,
         .birdNum = birdNum,
+        .birdNum_c = birdNum * CACHE_LINE_SIZE,
         .randomSeed = static_cast<int>(time(nullptr)),
         .outputPath = "./output.plot",
     };
@@ -76,12 +78,12 @@ int main(int argc, char* argv[]){
     randomDist = uniform_real_distribution<float>(0,1);
 
     //initialize the data
-    arrayPtr posX(new float[gPara.birdNum]);
-    arrayPtr posY(new float[gPara.birdNum]);
-    arrayPtr theta(new float[gPara.birdNum]);
+    arrayPtr posX(new float[gPara.birdNum_c]);
+    arrayPtr posY(new float[gPara.birdNum_c]);
+    arrayPtr theta(new float[gPara.birdNum_c]);
 
 
-    for(int i=0; i < gPara.birdNum; i++){
+    for(int i=0; i < gPara.birdNum_c; i++){
         //randomize the pos and theta
         auto randomFloat = randomDist(randomGen);
         posX[i] = randomFloat * gPara.fieldLength;
@@ -94,8 +96,7 @@ int main(int argc, char* argv[]){
     }
 
     //computing
-    //for(int i = 1; i <= Max_Thread_Num; i++)
-        computeActiveMatter(gPara, aPara, posX, posY, theta,256);
+    computeActiveMatter(gPara, aPara, posX, posY, theta);
 
     delete[] posX;
     delete[] posY;
@@ -107,7 +108,7 @@ int main(int argc, char* argv[]){
 int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
     //add current data to the file
     outputFile << "{" ;
-    for(int bird=0; bird < birdNum; bird++){
+    for(int bird=0; bird < birdNum; bird+=CACHE_LINE_SIZE){
         outputFile << posX[bird] << "," << posY[bird] << "," << theta[bird] << ";";
     }
     outputFile << "}" << endl;
@@ -115,14 +116,15 @@ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& po
 }
 
 
-void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta, int threadNum){
+void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
 
-    arrayPtr tempTheta(new float[gPara.birdNum]);
+    arrayPtr tempTheta(new float[gPara.birdNum_c]);
     ofstream outputFile;
     float observeRadiusSqr = pow(aPara.observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara.observeRadius / sqrt(2);
     double start_time, end_time;
-    omp_set_num_threads(threadNum);
+
+    omp_set_num_threads(256);
     start_time = omp_get_wtime();
 
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
@@ -135,16 +137,21 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         }
 
         //para
-        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
-            ",birdNum=" << gPara.birdNum << "}" << endl;
+        outputFile << "generalParameter{" 
+        << "fieldLength=" << gPara.fieldLength 
+        << ",totalStep=" << gPara.totalStep 
+        << ",birdNum=" << gPara.birdNum 
+        << ",randomSeed=" << gPara.randomSeed 
+        << "}" << endl;
         //data
-        outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+        outputToFile(outputFile, gPara.birdNum_c, posX, posY, theta);
     }
+
     #pragma omp parallel
-    {
+        {
         for(int step=0; step < gPara.totalStep; step++){ //steps
-            int id = omp_get_thread_num();
-                for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //move
+            #pragma omp for
+                for(int bird=0; bird < gPara.birdNum_c; bird+=CACHE_LINE_SIZE){ //move
                     //move
                     posX[bird] += gPara.deltaTime * cos(theta[bird]);
                     posY[bird] += gPara.deltaTime * sin(theta[bird]);
@@ -154,14 +161,12 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                     posY[bird] = fmod(posY[bird]+gPara.fieldLength, gPara.fieldLength);
 
                 }
-                #pragma omp barrier
             //adjust theta
-                for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //for each bird
+            #pragma omp for
+                for(int bird=0; bird < gPara.birdNum_c; bird+=CACHE_LINE_SIZE){ //for each bird
 
-                    //float meanTheta = theta[bird];
                     float sx = 0,sy = 0; 
-
-                    for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
+                    for(int oBird=0; oBird < gPara.birdNum_c; oBird+=CACHE_LINE_SIZE){ //observe other birds, self included
 
                         auto xDiffAbs = abs(posX[bird]-posX[oBird]);
                         auto yDiffAbs = abs(posY[bird]-posY[oBird]);
@@ -182,7 +187,6 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                                 sy += sin(theta[oBird]);
                             }
                         }
-
                         
                     }
                     tempTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
@@ -190,24 +194,22 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             //copy, could be dual-buffer
             //copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
             //memcpy(theta.get(), tempTheta.get(), gPara.birdNum * sizeof(*theta.get())); //copy to theta
-
-            //dual-buffer, swap ptr
-	
-            #pragma omp barrier
+            int id = omp_get_thread_num();
             if(id == 0){
                 auto tempPtr = theta;
                 theta = tempTheta;
                 tempTheta = tempPtr;
             
                 if(OUTPUT_TO_FILE)
-                    outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+                    outputToFile(outputFile, gPara.birdNum_c, posX, posY, theta);
             }
-
+            //dual-buffer, swap ptr
         }
-        
     }
+
     end_time = omp_get_wtime();
-    printf("Execution time of %d threads:%lf\n",threadNum, end_time - start_time);
+    printf("Execution time of %d threads:%lf\n",omp_get_max_threads(), end_time - start_time);
+
     if(OUTPUT_TO_FILE)outputFile.close();
     delete[] tempTheta;
 }

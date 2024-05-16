@@ -11,6 +11,7 @@ def main():
 
     # 提取基本参数
     parameters = re.search(r'generalParameter\{fieldLength=(\d+\.\d+),totalStep=(\d+),birdNum=(\d+),randomSeed=(\d+)\}', content)
+
     field_length = float(parameters.group(1))
     total_step = int(parameters.group(2))
     bird_num = int(parameters.group(3))
