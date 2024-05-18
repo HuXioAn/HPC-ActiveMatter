@@ -149,7 +149,13 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
 
+    chrono::time_point<chrono::high_resolution_clock> start, mid, stop;
+
     for(int step=0; step < gPara.totalStep; step++){ //steps
+
+        if(step == 100){
+            start = std::chrono::high_resolution_clock::now();
+        }
 
         for(int bird=0; bird < gPara.birdNum; bird++){ //move
             //move
@@ -161,6 +167,11 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             posY[bird] = fmod(posY[bird]+gPara.fieldLength, gPara.fieldLength);
 
         }
+
+        if(step == 100){
+            mid = std::chrono::high_resolution_clock::now();
+        }
+
         //adjust theta
         for(int bird=0; bird < gPara.birdNum; bird++){ //for each bird
 
@@ -192,6 +203,14 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                 
             }
             tempTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
+        }
+
+        if(step == 100){
+            stop = std::chrono::high_resolution_clock::now();
+            chrono::duration<double, std::micro> duration1 = mid - start;
+            chrono::duration<double, std::micro> duration2 = stop - mid;
+
+            cout << "D1: " << duration1.count() << "us, D2: " << duration2.count() << "us" << endl;
         }
         //copy, could be dual-buffer
         //copy(tempTheta.get(), tempTheta.get()+gPara.birdNum, theta.get());
