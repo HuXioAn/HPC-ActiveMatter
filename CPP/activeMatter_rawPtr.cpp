@@ -221,8 +221,17 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         theta = tempTheta;
         tempTheta = tempPtr;
 
+        if(step == 100){
+            start = std::chrono::high_resolution_clock::now();
+        }
+
         if(OUTPUT_TO_FILE)outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-        
+        if(step == 100){
+            stop = std::chrono::high_resolution_clock::now();
+            chrono::duration<double, std::micro> duration = stop - start;
+
+            cout << "Output: " << duration.count() << "us" << endl;
+        }
     }
 
     if(OUTPUT_TO_FILE)outputFile.close();
