@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <omp.h>
+#include <cstdio>
 using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
@@ -116,35 +117,34 @@ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& po
 
 
 void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta, int threadNum){
-
     arrayPtr bufTheta(new float[gPara.birdNum]);
     arrayPtr bufposX(new float[gPara.birdNum]);
     arrayPtr bufposY(new float[gPara.birdNum]);
     ofstream outputFile;
-    float observeRadiusSqr = pow(aPara.observeRadius,2);
+    float observeRadiusSqr = pow(aPara.observeRadius, 2);
     float inscribedSquareSideLengthHalf = aPara.observeRadius / sqrt(2);
     double start_time, end_time;
-    omp_set_num_threads(threadNum);
+    //omp_set_num_threads(threadNum);
     start_time = omp_get_wtime();
-
-    if(OUTPUT_TO_FILE){//save the parameter,first step to file
+    omp_set_nested(1);
+    if (OUTPUT_TO_FILE) { // save the parameter, first step to file
         outputFile = ofstream(gPara.outputPath, ios::trunc);
-        if(outputFile.is_open()){
+        if (outputFile.is_open()) {
             outputFile << std::fixed << std::setprecision(3);
-        }else{
+        } else {
             cout << "[!]Unable to open output file: " << gPara.outputPath << endl;
             exit(-1);
         }
 
-        //para
-        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
+        // para
+        outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep <<
             ",birdNum=" << gPara.birdNum << "}" << endl;
-        //data
-        //outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+        // data
+        // outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
-    threadNum --;
-    //make the whole calculation part parallel
-    #pragma omp parallel
+    threadNum--;
+    // make the whole calculation part parallel
+    #pragma omp parallel num_threads(2)
     {
         int id = omp_get_thread_num();
         for(int step=0; step < gPara.totalStep; step++){
@@ -194,12 +194,8 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
                 //dual-buffer, swap ptr
                 //Only one thread update theta and output.
             }
-        else{
-            if(OUTPUT_TO_FILE)
-                outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-        }
-        #pragma omp barrier
-            if(id == 0){
+            #pragma omp master
+            {
                 auto tempPtr = theta;
                 theta = bufTheta;
                 bufTheta = tempPtr;
@@ -212,14 +208,15 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             }
 
         }
-        
+
     }
     end_time = omp_get_wtime();
-    printf("Execution time of %d threads:%lf\n",threadNum, end_time - start_time);
-    if(OUTPUT_TO_FILE)outputFile.close();
+    printf("Execution time of %d threads:%lf\n", threadNum + 1, end_time - start_time);
+    if (OUTPUT_TO_FILE) outputFile.close();
     delete[] bufposX;
     delete[] bufposY;
     delete[] bufTheta;
 }
+
 
 
