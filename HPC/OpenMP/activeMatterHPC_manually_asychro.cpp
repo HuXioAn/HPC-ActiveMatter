@@ -150,47 +150,47 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
         for(int step=0; step < gPara.totalStep; step++){
             if(id != 0){
                 //steps
-                int id = omp_get_thread_num();
                     //manually allocate threads
-                    for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //move
+                    #pragma omp for
+                        for(int bird=0; bird < gPara.birdNum; bird++){ //move
                         //move
-                        bufposX[bird] = gPara.deltaTime * cos(theta[bird]) + posX[bird];
-                        bufposY[bird] = gPara.deltaTime * sin(theta[bird]) + posY[bird];
+                            bufposX[bird] = gPara.deltaTime * cos(theta[bird]) + posX[bird];
+                            bufposY[bird] = gPara.deltaTime * sin(theta[bird]) + posY[bird];
 
                         //in the field
-                        bufposX[bird] = fmod(bufposX[bird]+gPara.fieldLength, gPara.fieldLength);
-                        bufposY[bird] = fmod(bufposY[bird]+gPara.fieldLength, gPara.fieldLength);
+                            bufposX[bird] = fmod(bufposX[bird]+gPara.fieldLength, gPara.fieldLength);
+                            bufposY[bird] = fmod(bufposY[bird]+gPara.fieldLength, gPara.fieldLength);
 
-                    }
+                        }
                     //use barrier to Synchronize
-                    #pragma omp barrier
                     //adjust theta
-                    for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //for each bird
+                    #pragma omp for
+                        for(int bird=0; bird < gPara.birdNum; bird++){ //for each bird
                         //float meanTheta = theta[bird];
-                        float sx = 0,sy = 0; 
-                        for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
+                            float sx = 0,sy = 0; 
+                            for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
 
-                            auto xDiffAbs = abs(bufposX[bird]-bufposX[oBird]);
-                            auto yDiffAbs = abs(bufposY[bird]-bufposY[oBird]);
-                        
-                            if((xDiffAbs > aPara.observeRadius) || 
-                                (yDiffAbs > aPara.observeRadius) 
-                                || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
-                                )continue;//ignore birds outside the circumscribed square and 4 corners
-                            if((xDiffAbs < inscribedSquareSideLengthHalf) && 
-                                (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
-                                sx += cos(theta[oBird]);
-                                sy += sin(theta[oBird]);
-                            }else{
-                                auto distPow2 = pow(xDiffAbs, 2) + pow(yDiffAbs, 2);
-                                if(distPow2 < observeRadiusSqr){ //observed
+                                auto xDiffAbs = abs(bufposX[bird]-bufposX[oBird]);
+                                auto yDiffAbs = abs(bufposY[bird]-bufposY[oBird]);
+                            
+                                if((xDiffAbs > aPara.observeRadius) || 
+                                    (yDiffAbs > aPara.observeRadius) 
+                                    || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
+                                    )continue;//ignore birds outside the circumscribed square and 4 corners
+                                if((xDiffAbs < inscribedSquareSideLengthHalf) && 
+                                    (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
                                     sx += cos(theta[oBird]);
                                     sy += sin(theta[oBird]);
+                                }else{
+                                    auto distPow2 = pow(xDiffAbs, 2) + pow(yDiffAbs, 2);
+                                    if(distPow2 < observeRadiusSqr){ //observed
+                                        sx += cos(theta[oBird]);
+                                        sy += sin(theta[oBird]);
+                                    }
                                 }
                             }
+                            bufTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
                         }
-                        bufTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
-                    }
                 //dual-buffer, swap ptr
                 //Only one thread update theta and output.
             }
