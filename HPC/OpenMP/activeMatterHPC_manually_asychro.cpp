@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <omp.h>
+#include <cstdio>
 using namespace std;
 
 constexpr int DEFAULT_BIRD_NUM = 500; 
@@ -124,9 +125,9 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
     float observeRadiusSqr = pow(aPara.observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara.observeRadius / sqrt(2);
     double start_time, end_time;
-    omp_set_num_threads(threadNum);
+    //omp_set_num_threads(threadNum);
     start_time = omp_get_wtime();
-
+    omp_set_nested(1);
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
         outputFile = ofstream(gPara.outputPath, ios::trunc);
         if(outputFile.is_open()){
@@ -144,61 +145,61 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
     }
     threadNum --;
     //make the whole calculation part parallel
-    #pragma omp parallel
+    #pragma omp parallel num_threads(2)
     {
-        int id = omp_get_thread_num();
         for(int step=0; step < gPara.totalStep; step++){
-            if(id != 0){
-                //steps
-                int id = omp_get_thread_num();
-                    //manually allocate threads
-                    for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //move
+            #pragma omp sections{
+                #pragma omp section{
+                    #pragma omp parallel num_threads(threadNum){
+                        int id = omp_get_thread_num();
+                        //manually allocate threads
+                        for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //move
                         //move
-                        bufposX[bird] = gPara.deltaTime * cos(theta[bird]) + posX[bird];
-                        bufposY[bird] = gPara.deltaTime * sin(theta[bird]) + posY[bird];
+                            bufposX[bird] = gPara.deltaTime * cos(theta[bird]) + posX[bird];
+                            bufposY[bird] = gPara.deltaTime * sin(theta[bird]) + posY[bird];
 
                         //in the field
-                        bufposX[bird] = fmod(bufposX[bird]+gPara.fieldLength, gPara.fieldLength);
-                        bufposY[bird] = fmod(bufposY[bird]+gPara.fieldLength, gPara.fieldLength);
+                            bufposX[bird] = fmod(bufposX[bird]+gPara.fieldLength, gPara.fieldLength);
+                            bufposY[bird] = fmod(bufposY[bird]+gPara.fieldLength, gPara.fieldLength);
 
-                    }
-                    //use barrier to Synchronize
-                    #pragma omp barrier
-                    //adjust theta
-                    for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //for each bird
+                        }
+                        //use barrier to Synchronize
+                        #pragma omp barrier
+                        //adjust theta
+                        for(int bird=id; bird < gPara.birdNum; bird+=threadNum){ //for each bird
                         //float meanTheta = theta[bird];
-                        float sx = 0,sy = 0; 
-                        for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
+                            float sx = 0,sy = 0; 
+                            for(int oBird=0; oBird < gPara.birdNum; oBird++){ //observe other birds, self included
 
-                            auto xDiffAbs = abs(bufposX[bird]-bufposX[oBird]);
-                            auto yDiffAbs = abs(bufposY[bird]-bufposY[oBird]);
+                                auto xDiffAbs = abs(bufposX[bird]-bufposX[oBird]);
+                                auto yDiffAbs = abs(bufposY[bird]-bufposY[oBird]);
                         
-                            if((xDiffAbs > aPara.observeRadius) || 
-                                (yDiffAbs > aPara.observeRadius) 
-                                || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
-                                )continue;//ignore birds outside the circumscribed square and 4 corners
-                            if((xDiffAbs < inscribedSquareSideLengthHalf) && 
-                                (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
-                                sx += cos(theta[oBird]);
-                                sy += sin(theta[oBird]);
-                            }else{
-                                auto distPow2 = pow(xDiffAbs, 2) + pow(yDiffAbs, 2);
-                                if(distPow2 < observeRadiusSqr){ //observed
+                                if((xDiffAbs > aPara.observeRadius) || 
+                                    (yDiffAbs > aPara.observeRadius) 
+                                    || ((xDiffAbs > inscribedSquareSideLengthHalf) && (yDiffAbs > inscribedSquareSideLengthHalf))
+                                    )continue;//ignore birds outside the circumscribed square and 4 corners
+                                if((xDiffAbs < inscribedSquareSideLengthHalf) && 
+                                    (yDiffAbs < inscribedSquareSideLengthHalf)){ //birds inside the inscribed square
                                     sx += cos(theta[oBird]);
                                     sy += sin(theta[oBird]);
+                                }else{
+                                    auto distPow2 = pow(xDiffAbs, 2) + pow(yDiffAbs, 2);
+                                    if(distPow2 < observeRadiusSqr){ //observed
+                                        sx += cos(theta[oBird]);
+                                        sy += sin(theta[oBird]);
+                                    }
                                 }
                             }
+                            bufTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
                         }
-                        bufTheta[bird] = atan2(sy, sx) + (randomDist(randomGen) - 0.5) * aPara.fluctuation; //new theta
                     }
-                //dual-buffer, swap ptr
-                //Only one thread update theta and output.
+                }
+                #pragma omp sections{
+                    if(OUTPUT_TO_FILE)
+                        outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+                }
             }
-        else{
-            if(OUTPUT_TO_FILE)
-                outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-        }
-        #pragma omp barrier
+            #pragma omp barrier
             if(id == 0){
                 auto tempPtr = theta;
                 theta = bufTheta;
