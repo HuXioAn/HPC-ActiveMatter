@@ -1,11 +1,9 @@
-/**
- * @file activeMatter_rawPtr.cpp
- * @brief Optimized serial code for activeMatter
- * @details Single-threaded cpp code for activeMatter, all optimization applied
- * @author Andong Hu
- * @date 2024-5-21
- */
+/*
+cpp serial ActiveMatter simulation
+Auther: Anton
+Create Time: 02/04/24
 
+*/
 
 #include <iostream>
 #include <cmath>
@@ -17,48 +15,32 @@
 
 using namespace std;
 
-//! default bird number if not given
 constexpr int DEFAULT_BIRD_NUM = 500; 
-
-//! computing result output control
 constexpr bool OUTPUT_TO_FILE = true;
 
-
-/**
- * @brief structure of general parameters in the simulation
- * @details contains the parameters of the simulation, 
- * such as field length, step number, random seed...
-*/
 typedef struct generalPara_s
 {
-    float fieldLength;  ///< side length of the square simulation field
-    float deltaTime;    ///< the time between steps, to control the movement
-    int totalStep;      ///< steps number of the simulation
-    int birdNum;        ///< bird number in the simulation
+    float fieldLength;
+    float deltaTime;
+    int totalStep;
+    int birdNum;
 
-    int randomSeed;     ///< seed for the random generator
-    string outputPath;  ///< path for the output file
+    int randomSeed;
+    string outputPath;
 
 }generalPara_t;
 
-/**
- * @brief structure of parameters of birds in the simulation
- * @details parameters like the velocity of movement, 
- * index of fluctuation in orientation and the radius of observed area
-*/
 typedef struct activePara_s
 {
-    float velocity;     ///< movement speed of birds
-    float fluctuation;  ///< index of fluctuation in theta adjustment, in radian
-    float observeRadius;///< radius of the observed area
+    float velocity;
+    float fluctuation; //in radians
+    float observeRadius;
 
 }activePara_t;
 
-
-//! alias for the data type pointer
 using arrayPtr = float*;
 
-//! 0-1 float random number generator
+//0-1 float random
 mt19937 randomGen;
 uniform_real_distribution<float> randomDist;
 
@@ -68,23 +50,31 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
 
 int main(int argc, char* argv[]){
 
-    auto birdNum = DEFAULT_BIRD_NUM;
-    if(argc > 1){
-        birdNum = atoi(argv[1]);
-        if(birdNum == 0)birdNum = DEFAULT_BIRD_NUM;
+    
+    generalPara_s gPara = {
+            .fieldLength = 10.0,
+            .deltaTime = 0.2,
+            .totalStep = 500,
+            .birdNum = 500,
+            .randomSeed = static_cast<int>(time(nullptr)),
+            .outputPath = "./output.plot",
+        };
+
+    if(argc != 5){
+        printf("[!] 5 arguments required\n");
+        exit(-1);
+    }else{
+        //total_step bird_num random_Seed verifyOutputName
+        gPara.totalStep = atoi(argv[1]);
+        gPara.birdNum = atoi(argv[2]);
+        gPara.randomSeed = atoi(argv[3]);
+        gPara.outputPath = argv[4];
+
+        printf("[*] Start to generate for totalStep: %d, birdNum: %d, randomSeed: %d, Path: %s\n", 
+                                    gPara.totalStep, gPara.birdNum, gPara.randomSeed, gPara.outputPath.c_str());
     }
 
-    // the default general parameters
-    generalPara_s gPara = {
-        .fieldLength = 10.0,
-        .deltaTime = 0.2,
-        .totalStep = 500,
-        .birdNum = birdNum,
-        .randomSeed = static_cast<int>(time(nullptr)),
-        .outputPath = "./output.plot",
-    };
-
-    // the default bird parameters
+    //load the params
     activePara_s aPara = {
         .velocity = 1.0,
         .fluctuation = 0.5,
@@ -112,7 +102,6 @@ int main(int argc, char* argv[]){
         theta[i] = randomFloat * M_PI * 2;
     }
 
-    // timing the computing
     using namespace std::chrono;
     high_resolution_clock::time_point t1, t2;
     t1 = high_resolution_clock::now();
@@ -131,15 +120,6 @@ int main(int argc, char* argv[]){
     return 0;
 }
 
-/**
- * @brief write data of one step to file
- * 
- * @param[in] outputFile reference of opened file stream of the output file
- * @param[in] birdNum number of the birds in the three arrays
- * @param[in] posX reference of the pointer to the array of birds' position X
- * @param[in] posY reference of the pointer to the array of birds' position Y
- * @param[in] theta reference of the pointer to the array of birds' theta
-*/
 int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
     //add current data to the file
     outputFile << "{" ;
@@ -150,17 +130,7 @@ int outputToFile(ofstream& outputFile, int birdNum, arrayPtr& posX, arrayPtr& po
     return 0;
 }
 
-/**
- * @brief computation of the activeMatter
- * 
- * @details compute position(posX, posY) and orientation(theta) all of the steps, 
- * output to file if enabled.
- * @param[in] gPara structure of general paramters 
- * @param[in] aPara structure of bird parameters
- * @param[in] posX reference of the pointer to the array of birds' position X
- * @param[in] posY reference of the pointer to the array of birds' position Y
- * @param[in] theta reference of the pointer to the array of birds' theta
-*/
+
 void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX, arrayPtr& posY, arrayPtr& theta){
 
     arrayPtr tempTheta(new float[gPara.birdNum]);
@@ -177,14 +147,14 @@ void computeActiveMatter(generalPara_t gPara, activePara_t aPara, arrayPtr& posX
             exit(-1);
         }
 
-        //write the params
+        //para
         outputFile << "generalParameter{" 
         << "fieldLength=" << gPara.fieldLength 
         << ",totalStep=" << gPara.totalStep 
         << ",birdNum=" << gPara.birdNum 
         << ",randomSeed=" << gPara.randomSeed 
         << "}" << endl;
-        //write the data of first step
+        //data
         outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
     }
 
