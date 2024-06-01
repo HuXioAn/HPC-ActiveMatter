@@ -1,7 +1,8 @@
 # HPC - Active Matter
 > This repository contains the code of the Viscek active matter simulation algorithm in serial C++ and the code accelerated with OpenMP, MPI and CUDA.
 
-![simulation](./pic/simulation.gif)
+<img src="./pic/simulation.gif" alt="simulation" width="50%"/>
+
 
 ## Algorithm
 
