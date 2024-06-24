@@ -65,7 +65,13 @@ using arrayPtr = arrayType*;
 mt19937 randomGen;
 uniform_real_distribution<float> randomDist;
 
-__global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
+
+__global__ void move(generalPara_t* gPara, activePara_t* aPara, 
+                                    arrayPtr posX, 
+                                    arrayPtr posY, 
+                                    arrayPtr theta,arrayPtr thetaTemp );
+
+__global__ void adjust(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
                                     arrayPtr posY, 
                                     arrayPtr theta,arrayPtr thetaTemp );
@@ -113,11 +119,27 @@ __host__ int main(int argc, char* argv[]){
 
 //*******************************************************
 //initialize the host mem
-
+    auto size = gPara.birdNum * sizeof(arrayType);
     //initialize the data
-    arrayPtr posX(new arrayType[gPara.birdNum]);
-    arrayPtr posY(new arrayType[gPara.birdNum]);
-    arrayPtr theta(new arrayType[gPara.birdNum]);
+
+    arrayPtr posX;
+    arrayPtr posY;
+    arrayPtr theta;
+
+    if(cudaSuccess != cudaHostAlloc(&posX, size, cudaHostAllocDefault)){
+        printf("[!]Unable to alocate the posX Cuda mem.");
+        exit(-1);
+    }
+
+    if(cudaSuccess != cudaHostAlloc(&posY, size, cudaHostAllocDefault)){
+        printf("[!]Unable to alocate the posX Cuda mem.");
+        exit(-1);
+    }
+
+    if(cudaSuccess != cudaHostAlloc(&theta, size, cudaHostAllocDefault)){
+        printf("[!]Unable to alocate the posX Cuda mem.");
+        exit(-1);
+    }
 
     for(int i=0; i < gPara.birdNum; i++){
         //randomize the pos and theta
@@ -133,7 +155,6 @@ __host__ int main(int argc, char* argv[]){
 
 //**********************************************************
 //initialize the device mem
-    auto size = gPara.birdNum * sizeof(arrayType);
 
     arrayPtr posXCuda;
     if(cudaSuccess != cudaMalloc(&posXCuda, size)){
@@ -211,7 +232,12 @@ __host__ int main(int argc, char* argv[]){
 
     for(int step=0; step < gPara.totalStep; step++){
 
-        computeActiveMatter<<<blockPerGrid, threadPerBlock>>>
+        move<<<blockPerGrid, threadPerBlock>>>
+            (gParaCuda, aParaCuda, 
+            posXCuda, 
+            posYCuda, 
+            thetaCuda, thetaTempCuda);
+        adjust<<<blockPerGrid, threadPerBlock>>>
             (gParaCuda, aParaCuda, 
             posXCuda, 
             posYCuda, 
@@ -256,12 +282,32 @@ __host__ int main(int argc, char* argv[]){
 
 //***********************************************************
 
-    delete[] posX;
-    delete[] posY;
-    delete[] theta;
+    cudaFreeHost(posX);
+    cudaFreeHost(posY);
+    cudaFreeHost(theta);
 
     return 0;
     
+}
+
+
+__global__ void move(generalPara_t* gPara, activePara_t* aPara, 
+                                    arrayPtr posX, 
+                                    arrayPtr posY, 
+                                    arrayPtr theta,arrayPtr thetaTemp ){
+
+    auto bird = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if(bird >= gPara->birdNum)return;
+
+    //move
+    posX[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
+    posY[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
+
+    //in the field
+    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
+    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
+
 }
 
 /**
@@ -276,7 +322,7 @@ __host__ int main(int argc, char* argv[]){
  * @param[in] theta pointer to the array of birds' theta
  * @param[out] thetaTemp pointer to the temporary array of birds' theta
 */
-__global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
+__global__ void adjust(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
                                     arrayPtr posY, 
                                     arrayPtr theta,arrayPtr thetaTemp ){
@@ -290,16 +336,6 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
     
     float observeRadiusSqr = powf(aPara->observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara->observeRadius / sqrtf(2);
-
-
-    //move
-    posX[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
-    posY[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
-
-    //in the field
-    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
-    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
-
     
     //adjust theta
     float sx = 0,sy = 0; 
@@ -327,10 +363,6 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
         }
     }
     thetaTemp[bird] = atan2f(sy, sx) + (curand_uniform(&state) - 0.5) * aPara->fluctuation; //new theta
-
-    __syncthreads();
-
-
 
 }
 
