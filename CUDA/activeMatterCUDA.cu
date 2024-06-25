@@ -25,7 +25,7 @@ using namespace std;
 constexpr int DEFAULT_BIRD_NUM = 500; 
 
 //! computing result output control
-constexpr bool OUTPUT_TO_FILE = false;
+constexpr bool OUTPUT_TO_FILE = true;
 
 /**
  * @brief structure of general parameters in the simulation
@@ -69,7 +69,7 @@ uniform_real_distribution<float> randomDist;
 __global__ void move(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
                                     arrayPtr posY, 
-                                    arrayPtr theta,arrayPtr thetaTemp );
+                                    arrayPtr theta);
 
 __global__ void adjust(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
@@ -122,24 +122,41 @@ __host__ int main(int argc, char* argv[]){
     auto size = gPara.birdNum * sizeof(arrayType);
     //initialize the data
 
-    arrayPtr posX;
-    arrayPtr posY;
-    arrayPtr theta;
+    arrayPtr posX, posXNext;
+    arrayPtr posY, posYNext;
+    arrayPtr theta, thetaNext;
+    { // fold me
+        if(cudaSuccess != cudaHostAlloc(&posX, size, cudaHostAllocDefault)){
+            printf("[!]Unable to alocate the posX Cuda mem.");
+            exit(-1);
+        }
 
-    if(cudaSuccess != cudaHostAlloc(&posX, size, cudaHostAllocDefault)){
-        printf("[!]Unable to alocate the posX Cuda mem.");
-        exit(-1);
-    }
+        if(cudaSuccess != cudaHostAlloc(&posY, size, cudaHostAllocDefault)){
+            printf("[!]Unable to alocate the posY Cuda mem.");
+            exit(-1);
+        }
 
-    if(cudaSuccess != cudaHostAlloc(&posY, size, cudaHostAllocDefault)){
-        printf("[!]Unable to alocate the posX Cuda mem.");
-        exit(-1);
-    }
+        if(cudaSuccess != cudaHostAlloc(&theta, size, cudaHostAllocDefault)){
+            printf("[!]Unable to alocate the theta Cuda mem.");
+            exit(-1);
+        }
 
-    if(cudaSuccess != cudaHostAlloc(&theta, size, cudaHostAllocDefault)){
-        printf("[!]Unable to alocate the posX Cuda mem.");
-        exit(-1);
+        if(cudaSuccess != cudaHostAlloc(&posXNext, size, cudaHostAllocDefault)){
+            printf("[!]Unable to alocate the posXNext Cuda mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaHostAlloc(&posYNext, size, cudaHostAllocDefault)){
+            printf("[!]Unable to alocate the posYNext Cuda mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaHostAlloc(&thetaNext, size, cudaHostAllocDefault)){
+            printf("[!]Unable to alocate the thetaNext Cuda mem.");
+            exit(-1);
+        }
     }
+    
 
     for(int i=0; i < gPara.birdNum; i++){
         //randomize the pos and theta
@@ -157,40 +174,43 @@ __host__ int main(int argc, char* argv[]){
 //initialize the device mem
 
     arrayPtr posXCuda;
-    if(cudaSuccess != cudaMalloc(&posXCuda, size)){
-        printf("[!]Unable to alocate the posX Cuda mem.");
-        exit(-1);
-    }
-
     arrayPtr posYCuda;
-    if(cudaSuccess != cudaMalloc(&posYCuda, size)){
-        printf("[!]Unable to alocate the posY Cuda mem.");
-        exit(-1);
-    }
-
     arrayPtr thetaCuda;
-    if(cudaSuccess != cudaMalloc(&thetaCuda, size)){
-        printf("[!]Unable to alocate the theta Cuda mem.");
-        exit(-1);
-    }
-
     arrayPtr thetaTempCuda;
-    if(cudaSuccess != cudaMalloc(&thetaTempCuda, size)){
-        printf("[!]Unable to alocate the theta Cuda temp mem.");
-        exit(-1);
-    }
-
     generalPara_s* gParaCuda;
-    if(cudaSuccess != cudaMalloc(&gParaCuda, sizeof(generalPara_s))){
-        printf("[!]Unable to alocate the gPara Cuda mem.");
-        exit(-1);
-    }
-
     activePara_s* aParaCuda;
-    if(cudaSuccess != cudaMalloc(&aParaCuda, sizeof(activePara_s))){
-        printf("[!]Unable to alocate the aPara Cuda mem.");
-        exit(-1);
+    { // fold me 
+        if(cudaSuccess != cudaMalloc(&posXCuda, size)){
+            printf("[!]Unable to alocate the posX Cuda mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaMalloc(&posYCuda, size)){
+            printf("[!]Unable to alocate the posY Cuda mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaMalloc(&thetaCuda, size)){
+            printf("[!]Unable to alocate the theta Cuda mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaMalloc(&thetaTempCuda, size)){
+            printf("[!]Unable to alocate the theta Cuda temp mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaMalloc(&gParaCuda, sizeof(generalPara_s))){
+            printf("[!]Unable to alocate the gPara Cuda mem.");
+            exit(-1);
+        }
+
+        if(cudaSuccess != cudaMalloc(&aParaCuda, sizeof(activePara_s))){
+            printf("[!]Unable to alocate the aPara Cuda mem.");
+            exit(-1);
+        }
     }
+    
 
     cudaMemcpy(posXCuda, posX, size, cudaMemcpyHostToDevice);
     cudaMemcpy(posYCuda, posY, size, cudaMemcpyHostToDevice);
@@ -205,13 +225,25 @@ __host__ int main(int argc, char* argv[]){
     auto threadPerBlock = 256;
     auto blockPerGrid = (gPara.birdNum + threadPerBlock - 1) / threadPerBlock;
 
+    cudaStream_t stream[2];
+    for (int i = 0; i < 2; ++i)cudaStreamCreate(&stream[i]);
+
+    cudaEvent_t event[2];
+    // move to adjust
+    cudaEventCreateWithFlags(&event[0], cudaEventDefault | cudaEventDisableTiming);
+    // adjust to move
+    cudaEventCreateWithFlags(&event[1], cudaEventDefault | cudaEventDisableTiming);
+    // for host output
+    cudaEvent_t outputEvent[gPara.totalStep];
+    for (int i = 0; i < gPara.totalStep; ++i)
+    cudaEventCreateWithFlags(&outputEvent[i], cudaEventDefault | cudaEventDisableTiming | cudaEventBlockingSync);
 
     using namespace std::chrono;
     high_resolution_clock::time_point t1, t2;
     t1 = high_resolution_clock::now();
 
 
-    // output of the params anf the first step
+    // output of the params 
     ofstream outputFile;
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
         outputFile = ofstream(gPara.outputPath, ios::trunc);
@@ -225,49 +257,79 @@ __host__ int main(int argc, char* argv[]){
         //para
         outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
             ",birdNum=" << gPara.birdNum << "}" << endl;
-        //data
-        //outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-    }
 
+        outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+    }
 
     for(int step=0; step < gPara.totalStep; step++){
+        { // stream 1
 
-        move<<<blockPerGrid, threadPerBlock>>>
-            (gParaCuda, aParaCuda, 
-            posXCuda, 
-            posYCuda, 
-            thetaCuda, thetaTempCuda);
-        adjust<<<blockPerGrid, threadPerBlock>>>
-            (gParaCuda, aParaCuda, 
-            posXCuda, 
-            posYCuda, 
-            thetaCuda, thetaTempCuda);
-        
+            cudaStreamWaitEvent(stream[0], event[1]);
 
-        //dual-buffer, swap ptr
-        swapPtr(thetaCuda, thetaTempCuda);
+            move<<<blockPerGrid, threadPerBlock, 0, stream[0]>>>
+                (gParaCuda, aParaCuda, 
+                posXCuda, 
+                posYCuda, 
+                thetaCuda);
+            
+            cudaEventRecord(event[0], stream[0]);
 
-        //making memcpy and computing parallel does not make things better
-        //for the small amount of data, synchronization brings relatively large overhead
-        if(OUTPUT_TO_FILE){
-            //write previous step to output
-            //making output io and computing parallel makes big difference
-            outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
-            cudaDeviceSynchronize(); 
+            //copy to pos buf
+            cudaMemcpyAsync(posXNext, posXCuda, size, cudaMemcpyDeviceToHost, stream[0]);
+            cudaMemcpyAsync(posYNext, posYCuda, size, cudaMemcpyDeviceToHost, stream[0]);
+        }
 
-            cudaMemcpy(posX, posXCuda, size, cudaMemcpyDeviceToHost);
-            cudaMemcpy(posY, posYCuda, size, cudaMemcpyDeviceToHost);
-            cudaMemcpy(theta, thetaCuda, size, cudaMemcpyDeviceToHost);
 
+        { // stream 2
+            
+            cudaStreamWaitEvent(stream[1], event[0]);
+
+            adjust<<<blockPerGrid, threadPerBlock, 0, stream[1]>>>
+                (gParaCuda, aParaCuda, 
+                posXCuda, 
+                posYCuda, 
+                thetaCuda, thetaTempCuda);
+
+            cudaEventRecord(event[1], stream[1]);
+
+            cudaMemcpyAsync(thetaNext, thetaCuda, size, cudaMemcpyDeviceToHost, stream[1]);
+
+            cudaEventRecord(outputEvent[step], stream[1]);
+            
         }
         
-
+        //dual-buffer, swap ptr
+        swapPtr(thetaCuda, thetaTempCuda);
+        swapPtr(posX, posXNext);
+        swapPtr(posY, posYNext);
+        swapPtr(theta, thetaNext);
+   
     }
-    if(OUTPUT_TO_FILE){outputToFile(outputFile, gPara.birdNum, posX, posY, theta);} // last step
+
+    if(OUTPUT_TO_FILE){ // output on host
+        if((gPara.totalStep % 2) != 0){
+            swapPtr(posX, posXNext);
+            swapPtr(posY, posYNext);
+            swapPtr(theta, thetaNext);
+        }
+
+
+
+        for(int step=0; step < gPara.totalStep; step++){
+
+            swapPtr(posX, posXNext);
+            swapPtr(posY, posYNext);
+            swapPtr(theta, thetaNext);
+
+            cudaEventSynchronize(outputEvent[step]);
+            outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+
+        }
+
+        outputFile.close();
+    }
     
     cudaDeviceSynchronize(); 
-
-    if(OUTPUT_TO_FILE)outputFile.close();
 
     cudaError_t error = cudaGetLastError();
     if (error != cudaSuccess) {
@@ -285,6 +347,9 @@ __host__ int main(int argc, char* argv[]){
     cudaFreeHost(posX);
     cudaFreeHost(posY);
     cudaFreeHost(theta);
+    cudaFreeHost(posXNext);
+    cudaFreeHost(posYNext);
+    cudaFreeHost(thetaNext);
 
     return 0;
     
@@ -294,7 +359,7 @@ __host__ int main(int argc, char* argv[]){
 __global__ void move(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
                                     arrayPtr posY, 
-                                    arrayPtr theta,arrayPtr thetaTemp ){
+                                    arrayPtr theta){
 
     auto bird = blockDim.x * blockIdx.x + threadIdx.x;
 
