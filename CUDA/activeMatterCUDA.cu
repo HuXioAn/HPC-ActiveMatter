@@ -25,7 +25,7 @@ using namespace std;
 constexpr int DEFAULT_BIRD_NUM = 500; 
 
 //! computing result output control
-constexpr bool OUTPUT_TO_FILE = false;
+constexpr bool OUTPUT_TO_FILE = true;
 
 /**
  * @brief structure of general parameters in the simulation
@@ -65,7 +65,12 @@ using arrayPtr = arrayType*;
 mt19937 randomGen;
 uniform_real_distribution<float> randomDist;
 
-__global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
+__global__ void move(generalPara_t* gPara, activePara_t* aPara, 
+                                    arrayPtr posX, 
+                                    arrayPtr posY, 
+                                    arrayPtr theta);
+
+__global__ void adjust(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
                                     arrayPtr posY, 
                                     arrayPtr theta,arrayPtr thetaTemp );
@@ -113,11 +118,28 @@ __host__ int main(int argc, char* argv[]){
 
 //*******************************************************
 //initialize the host mem
+    auto size = gPara.birdNum * sizeof(arrayType);
 
     //initialize the data
-    arrayPtr posX(new arrayType[gPara.birdNum]);
-    arrayPtr posY(new arrayType[gPara.birdNum]);
-    arrayPtr theta(new arrayType[gPara.birdNum]);
+    arrayPtr posX;
+    arrayPtr posY;
+    arrayPtr theta;
+    { // fold me
+
+    if(cudaSuccess != cudaHostAlloc(&posX, size, cudaHostAllocDefault)){
+        printf("[!]Unable to alocate the posX Cuda mem.");
+        exit(-1);
+    }
+
+    if(cudaSuccess != cudaHostAlloc(&posY, size, cudaHostAllocDefault)){
+        printf("[!]Unable to alocate the posY Cuda mem.");
+        exit(-1);
+    }
+
+    if(cudaSuccess != cudaHostAlloc(&theta, size, cudaHostAllocDefault)){
+        printf("[!]Unable to alocate the theta Cuda mem.");
+        exit(-1);
+    }
 
     for(int i=0; i < gPara.birdNum; i++){
         //randomize the pos and theta
@@ -131,41 +153,43 @@ __host__ int main(int argc, char* argv[]){
         theta[i] = randomFloat * M_PI * 2;
     }
 
+    }
+
 //**********************************************************
 //initialize the device mem
-    auto size = gPara.birdNum * sizeof(arrayType);
-
     arrayPtr posXCuda;
+    arrayPtr posYCuda;
+    arrayPtr thetaCuda;
+    arrayPtr thetaTempCuda;
+    generalPara_s* gParaCuda;
+    activePara_s* aParaCuda;
+    { // fold me
+
     if(cudaSuccess != cudaMalloc(&posXCuda, size)){
         printf("[!]Unable to alocate the posX Cuda mem.");
         exit(-1);
     }
 
-    arrayPtr posYCuda;
     if(cudaSuccess != cudaMalloc(&posYCuda, size)){
         printf("[!]Unable to alocate the posY Cuda mem.");
         exit(-1);
     }
 
-    arrayPtr thetaCuda;
     if(cudaSuccess != cudaMalloc(&thetaCuda, size)){
         printf("[!]Unable to alocate the theta Cuda mem.");
         exit(-1);
     }
 
-    arrayPtr thetaTempCuda;
     if(cudaSuccess != cudaMalloc(&thetaTempCuda, size)){
         printf("[!]Unable to alocate the theta Cuda temp mem.");
         exit(-1);
     }
 
-    generalPara_s* gParaCuda;
     if(cudaSuccess != cudaMalloc(&gParaCuda, sizeof(generalPara_s))){
         printf("[!]Unable to alocate the gPara Cuda mem.");
         exit(-1);
     }
 
-    activePara_s* aParaCuda;
     if(cudaSuccess != cudaMalloc(&aParaCuda, sizeof(activePara_s))){
         printf("[!]Unable to alocate the aPara Cuda mem.");
         exit(-1);
@@ -177,11 +201,12 @@ __host__ int main(int argc, char* argv[]){
     cudaMemcpy(gParaCuda, &gPara, sizeof(generalPara_s), cudaMemcpyHostToDevice);
     cudaMemcpy(aParaCuda, &aPara, sizeof(activePara_s), cudaMemcpyHostToDevice);
 
+    }
 
 //**********************************************************
 //kernel
-    // 256 threads per block
-    auto threadPerBlock = 256;
+    // 512 threads per block. faster than 256
+    auto threadPerBlock = 512;
     auto blockPerGrid = (gPara.birdNum + threadPerBlock - 1) / threadPerBlock;
 
 
@@ -190,7 +215,7 @@ __host__ int main(int argc, char* argv[]){
     t1 = high_resolution_clock::now();
 
 
-    // output of the params anf the first step
+    // output of the params 
     ofstream outputFile;
     if(OUTPUT_TO_FILE){//save the parameter,first step to file
         outputFile = ofstream(gPara.outputPath, ios::trunc);
@@ -204,14 +229,19 @@ __host__ int main(int argc, char* argv[]){
         //para
         outputFile << "generalParameter{" << "fieldLength=" << gPara.fieldLength << ",totalStep=" << gPara.totalStep << 
             ",birdNum=" << gPara.birdNum << "}" << endl;
-        //data
-        //outputToFile(outputFile, gPara.birdNum, posX, posY, theta);
+
     }
 
 
     for(int step=0; step < gPara.totalStep; step++){
 
-        computeActiveMatter<<<blockPerGrid, threadPerBlock>>>
+        move<<<blockPerGrid, threadPerBlock>>>
+            (gParaCuda, aParaCuda, 
+            posXCuda, 
+            posYCuda, 
+            thetaCuda);
+
+        adjust<<<blockPerGrid, threadPerBlock>>>
             (gParaCuda, aParaCuda, 
             posXCuda, 
             posYCuda, 
@@ -256,12 +286,31 @@ __host__ int main(int argc, char* argv[]){
 
 //***********************************************************
 
-    delete[] posX;
-    delete[] posY;
-    delete[] theta;
+    cudaFreeHost(posX);
+    cudaFreeHost(posY);
+    cudaFreeHost(theta);
 
     return 0;
     
+}
+
+__global__ void move(generalPara_t* gPara, activePara_t* aPara, 
+                                    arrayPtr posX, 
+                                    arrayPtr posY, 
+                                    arrayPtr theta){
+
+    auto bird = blockDim.x * blockIdx.x + threadIdx.x;
+
+    if(bird >= gPara->birdNum)return;
+
+    //move
+    posX[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
+    posY[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
+
+    //in the field
+    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
+    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
+
 }
 
 /**
@@ -276,7 +325,7 @@ __host__ int main(int argc, char* argv[]){
  * @param[in] theta pointer to the array of birds' theta
  * @param[out] thetaTemp pointer to the temporary array of birds' theta
 */
-__global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara, 
+__global__ void adjust(generalPara_t* gPara, activePara_t* aPara, 
                                     arrayPtr posX, 
                                     arrayPtr posY, 
                                     arrayPtr theta,arrayPtr thetaTemp ){
@@ -290,16 +339,6 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
     
     float observeRadiusSqr = powf(aPara->observeRadius,2);
     float inscribedSquareSideLengthHalf = aPara->observeRadius / sqrtf(2);
-
-
-    //move
-    posX[bird] = posX[bird] + gPara->deltaTime * cosf(theta[bird]);
-    posY[bird] = posY[bird] + gPara->deltaTime * sinf(theta[bird]);
-
-    //in the field
-    posX[bird] = fmod(posX[bird]+gPara->fieldLength, gPara->fieldLength);
-    posY[bird] = fmod(posY[bird]+gPara->fieldLength, gPara->fieldLength);
-
     
     //adjust theta
     float sx = 0,sy = 0; 
@@ -327,10 +366,6 @@ __global__ void computeActiveMatter(generalPara_t* gPara, activePara_t* aPara,
         }
     }
     thetaTemp[bird] = atan2f(sy, sx) + (curand_uniform(&state) - 0.5) * aPara->fluctuation; //new theta
-
-    __syncthreads();
-
-
 
 }
 
